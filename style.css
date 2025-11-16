@@ -1,0 +1,318 @@
+:root {
+  --bg: #0f172a;
+  --panel: #111827;
+  --muted: #6b7280;
+  --text: #e5e7eb;
+  --accent: #22d3ee;
+  --ring: rgba(34, 211, 238, 0.35);
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* Header/Footer */
+.app-header, .app-footer {
+  padding: 12px 16px;
+  background: linear-gradient(180deg, #0b1220, #0b1220d0);
+  border-bottom: 1px solid #1f2937;
+}
+.app-footer { border-top: 1px solid #1f2937; }
+.app-header h1 { margin: 0; font-size: 22px; letter-spacing: 0.5px; }
+.tagline { margin: 4px 0 0; color: var(--muted); font-size: 12px; }
+#status-text { color: var(--muted); font-size: 12px; }
+
+/* Main column centered */
+main.container {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  box-sizing: border-box;
+}
+
+/* Steps */
+.step {
+  display: none;
+  width: 100%;
+  max-width: 720px;
+  margin: 24px auto;
+}
+.step.active { display: block; }
+
+.visually-hidden {
+  position: absolute !important;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0);
+  border: 0;
+}
+
+/* Controls */
+.control { display: grid; gap: 6px; margin: 12px 0; }
+.control label { font-size: 12px; color: var(--muted); }
+select, input, button {
+  background: #0b1220;
+  color: var(--text);
+  border: 1px solid #253041;
+  border-radius: 12px;
+  padding: 12px 14px;
+  font-size: 16px;
+  outline: none;
+}
+select:focus, input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 4px var(--ring);
+}
+
+/* Step nav */
+.step-nav {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  align-items: center;
+  margin-top: 24px;
+}
+.step-nav .back-btn,
+.step-nav .next-btn {
+  padding: 12px 16px;
+  min-height: 44px;
+  border-radius: 12px;
+  border: 1px solid #253041;
+  background: #0b1220;
+  color: #e5e7eb;
+  font-size: 16px;
+  font-weight: 600;
+}
+.step-nav .back-btn:hover,
+.step-nav .next-btn:hover { border-color: var(--accent); }
+button[disabled]{ opacity:.55; cursor:not-allowed; }
+
+/* Viewer */
+.viewer {
+  background: #0b1220;
+  border: 1px solid #1f2937;
+  border-radius: 14px;
+  padding: 10px;
+  display: grid;
+  grid-template-rows: 1fr auto;
+  min-height: 0;
+}
+#image-wrapper {
+  overflow: auto;
+  width: 100%;
+  height: 70vh;      /* big, centered viewport */
+  display: grid;
+  align-items: start;
+  justify-items: center;
+}
+#image {
+  width: 100%;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  border-radius: 8px;
+  image-rendering: auto;
+  touch-action: auto; user-select: none; -webkit-user-drag: none;
+}
+
+/* Buttons row under viewer */
+.control.buttons { display: flex; gap: 8px; justify-content: flex-end; }
+
+/* Mobile */
+@media (max-width: 900px) {
+  .step { margin: 12px auto; }
+}
+/* === HARD CENTER (grid) — last lines win === */
+
+/* Neutralize older container rules that might fight centering */
+main.container {
+  max-width: none !important;
+  width: auto !important;
+  margin: 0 !important;
+}
+
+/* Put the whole page in a 3-column grid:
+   [ gutter | centered column | gutter ]  */
+body {
+  margin: 0 !important;
+  display: grid !important;
+  grid-template-columns: 1fr min(1100px, 100%) 1fr !important;
+}
+
+/* Force header, main, footer into the centered column */
+body > header.app-header,
+body > main.container,
+body > footer.app-footer {
+  grid-column: 2 !important;
+  width: 100% !important;
+  box-sizing: border-box !important;
+  padding-left: 24px !important;
+  padding-right: 24px !important;
+}
+
+/* Keep each step panel centered within that column */
+.step {
+  max-width: 720px !important;
+  width: 100% !important;
+  margin: 24px auto !important;
+}
+.page {
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 24px;
+  box-sizing: border-box;
+}
+
+.step {
+  max-width: 720px;
+  width: 100%;
+  margin: 24px auto;
+}
+
+/* Optional visual guide to confirm centering */
+.page {
+  outline: 2px dashed rgba(34,211,238,.35);
+  outline-offset: 0;
+}
+/* === SINGLE CENTER COLUMN (final) === */
+:root { --page-pad: 24px; --page-max: 1100px; }
+
+body > .page {
+  width: min(var(--page-max), 100% - (2 * var(--page-pad)));
+  margin-inline: auto;          /* centers header+main+footer as a unit */
+  padding-inline: var(--page-pad);
+  box-sizing: border-box;
+}
+
+.step { max-width: 720px; width: 100%; margin: 24px auto; }
+#image-wrapper {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 8px;
+}
+
+#image {
+  max-width: 90vw;
+  max-height: 75vh;
+  width: auto;
+  height: auto;
+  object-fit: contain;
+  display: block;
+}
+/* kill accidental page grid so content centers inside .container */
+body { 
+  display: block !important; 
+  margin: 0;
+}
+/* ===== Mapping overlay ===== */
+#map-layer .hit {
+  position: absolute;
+  outline: 2px dashed;
+  cursor: pointer;
+  pointer-events: auto; /* allow clicking */
+}
+
+#map-layer .hit:hover {
+  outline-style: solid;
+}
+
+#map-layer .label {
+  position: absolute;
+  font: 12px/1.2 sans-serif;
+  padding: 2px 4px;
+  background: rgba(255,255,255,0.85);
+  border-radius: 4px;
+  pointer-events: none;
+  transform: translateY(-100%); /* floats label just above the box */
+}
+/* Ensure wrapper can host absolute overlay */
+#image-wrapper {
+  position: relative; /* safe even if already set in JS */
+}
+
+/* The blueprint image shouldn’t “drag” or select text */
+#image {
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: none;        /* blocks touch/trackpad pan on the image itself */
+}
+
+/* Overlay that receives your clicks/drags */
+#map-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: auto;      /* capture pointer on overlay, not the image */
+  cursor: crosshair;         /* drawing cursor */
+  z-index: 10000;            /* higher than captions/buttons */
+  user-select: none;
+  touch-action: none;        /* blocks browser gestures */
+}
+
+/* Hotspot rectangles + floating labels */
+#map-layer .hit {
+  position: absolute;
+  border: 2px dashed rgba(255,255,255,0.9);
+  box-sizing: border-box;
+  pointer-events: auto;      /* clickable hotspots */
+}
+
+#map-layer .label {
+  position: absolute;
+  background: rgba(0,0,0,0.65);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  padding: 2px 6px;
+  border-radius: 8px;
+  pointer-events: none;      /* label doesn’t steal clicks */
+}
+/* Prevent image from being dragged/selected */
+/* --- Mapping overlay visibility fix --- */
+#image-wrapper {
+  position: relative;
+}
+
+#map-layer {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 9999;
+  pointer-events: none;
+}
+
+#map-layer .hit {
+  position: absolute;
+  border: 2px dashed lime;
+  background: rgba(0, 255, 0, 0.15);
+  display: block;
+  opacity: 1;
+  z-index: 10000;
+}
+/* Viewer sizing + image display */
+#image-wrapper { 
+  position: relative; 
+  width: min(95vw, 1200px);   /* make it wide enough to see */
+  margin: 0 auto; 
+}
+
+#sheet-image {              /* ensure the image actually shows */
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
+#map-layer {                /* overlay on top of the image area */
+  position: absolute;
+  inset: 0;
+  z-index: 9999;
+  pointer-events: none;
+}

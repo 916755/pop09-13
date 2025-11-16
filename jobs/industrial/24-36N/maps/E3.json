@@ -1,0 +1,22 @@
+[
+  { "x": 974,  "y": 702,  "w": 375, "h": 50,  "label": "E3-129B", "target": "129B", "meta": { "confidence": 1 } },
+  { "x": 1449, "y": 702,  "w": 375, "h": 50,  "label": "E3-129B", "target": "129B", "meta": { "confidence": 1 } },
+  { "x": 1911, "y": 702,  "w": 549, "h": 50,  "label": "E3-156B", "target": "156B", "meta": { "confidence": 1 } },
+  { "x": 2473, "y": 1739, "w": 62,  "h": 50,  "label": "E3-231C", "target": "231C", "meta": { "confidence": 1 } },
+  { "x": 2498, "y": 1414, "w": 50,  "h": 312, "label": "E3-133B", "target": "133B", "meta": { "confidence": 1 } },
+  { "x": 2498, "y": 777,  "w": 50,  "h": 275, "label": "E3-135B", "target": "135B", "meta": { "confidence": 1 } },
+  { "x": 2498, "y": 1339, "w": 50,  "h": 50,  "label": "E3-230C", "target": "230C", "meta": { "confidence": 1 } },
+  { "x": 2473, "y": 1064, "w": 87,  "h": 50,  "label": "E3-232C", "target": "232C", "meta": { "confidence": 1 } },
+  { "x": 2498, "y": 715,  "w": 50,  "h": 50,  "label": "E3-233C", "target": "233C", "meta": { "confidence": 1 } },
+  { "x": 2460, "y": 702,  "w": 50,  "h": 75,  "label": "E3-240C", "target": "240C", "meta": { "confidence": 1 } },
+  { "x": 1836, "y": 702,  "w": 50,  "h": 75,  "label": "E3-234C", "target": "234C", "meta": { "confidence": 1 } },
+  { "x": 1361, "y": 702,  "w": 50,  "h": 62,  "label": "E3-235C", "target": "235C", "meta": { "confidence": 1 } },
+  { "x": 899,  "y": 702,  "w": 50,  "h": 62,  "label": "E3-236C", "target": "236C", "meta": { "confidence": 1 } },
+  { "x": 512,  "y": 702,  "w": 375, "h": 50,  "label": "E3-130B", "target": "130B", "meta": { "confidence": 1 } },
+  { "x": 437,  "y": 777,  "w": 50,  "h": 225, "label": "E3-141B", "target": "141B", "meta": { "confidence": 1 } },
+  { "x": 437,  "y": 1114, "w": 50,  "h": 212, "label": "E3-138B", "target": "138B", "meta": { "confidence": 1 } },
+  { "x": 462,  "y": 702,  "w": 50,  "h": 50,  "label": "E3-241C", "target": "241C", "meta": { "confidence": 1 } },
+  { "x": 437,  "y": 715,  "w": 50,  "h": 50,  "label": "E3-237C", "target": "237C", "meta": { "confidence": 1 } },
+  { "x": 425,  "y": 1964, "w": 75,  "h": 50,  "label": "E3-238C", "target": "238C", "meta": { "confidence": 1 } },
+  { "x": 425,  "y": 1351, "w": 75,  "h": 50,  "label": "E3-239C", "target": "239C", "meta": { "confidence": 1 } }
+]

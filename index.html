@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Prince of Prints</title>
+  <link rel="stylesheet" href="style.css" />
+  <style>
+    /* Touch-friendly controls */
+    select, input, button {
+      font-size: 18px !important;
+      padding: 14px 16px !important;
+      min-height: 44px !important;
+      border-radius: 12px !important;
+    }
+  </style>
+</head>
+<body>
+  <div class="page">   <!-- new wrapper starts -->
+
+    <header class="app-header">
+      <h1>Prince of Prints</h1>
+      <p class="tagline">Fast blueprint browsing • Keyboard-ready • Zero setup</p>
+    </header>
+       <!--step 1 select construction type-->
+    <main class="container">
+      <div class="control">
+    <label for="type-select">Construction type</label>
+<select id="type-select">
+  <option value="" selected>(none / legacy)</option>
+  <option value="residential">Residential</option>
+  <option value="institutional">Institutional</option>
+  <option value="commercial">Commercial</option>
+  <option value="industrial">Industrial</option>
+  <option value="special">Special</option>
+</select>
+
+
+  </div>
+<!-- STEP 1: Access Code -->
+<section class="step active" id="step-1" aria-labelledby="step1-title">
+  <h2 id="step1-title" class="visually-hidden">Step 1: Access Code</h2>
+
+  <div class="control">
+    <label for="job-input">Access code:</label>
+    <input id="job-input" type="password" placeholder="Enter access code (e.g. 24-36N)" />
+  </div>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" disabled>Back</button>
+    <button type="button" class="next-btn" data-go="2" disabled>Next</button>
+  </div>
+</section>
+
+<!-- STEP 2: Category -->
+<section class="step" id="step-2" aria-labelledby="step2-title">
+  <h2 id="step2-title" class="visually-hidden">Step 2: Select Category</h2>
+
+  <div class="control">
+    <label for="category-select">Category</label>
+    <select id="category-select"></select>
+  </div>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" data-go="1">Back</button>
+    <button type="button" class="next-btn" data-go="3" disabled>Next</button>
+  </div>
+</section>
+
+<!-- Jump controls -->
+<div class="jump-row" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-block:8px;">
+  <label for="jump-input">Jump to tag:</label>
+  <input id="jump-input" type="text" placeholder="e.g., 133B or P271" style="flex:1; min-width:180px;">
+  <button id="jump-btn" type="button">Jump</button>
+</div>
+
+<!-- STEP 3: Sheet + Filter -->
+<section class="step" id="step-3" aria-labelledby="step3-title">
+  <h2 id="step3-title" class="visually-hidden">Step 3: Select Sheet</h2>
+
+  <div class="control">
+    <label for="sheet-select">Sheet</label>
+    <select id="sheet-select"></select>
+  </div>
+
+  <div class="control">
+    <label for="filter-input">Filter (type to narrow)</label>
+    <input id="filter-input" type="text" placeholder="e.g. B-232, ref-E8, detail, C-12" />
+  </div>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" data-go="2">Back</button>
+    <button type="button" class="next-btn" data-go="4" disabled>Next</button>
+  </div>
+</section>
+
+<!-- STEP 4: Image viewer -->
+<section class="step" id="step-4" aria-labelledby="step4-title">
+  <h2 id="step4-title" class="visually-hidden">Step 4: Image Viewer</h2>
+
+  <section class="viewer">
+    <div id="image-wrapper" style="position:relative;">
+      <img id="sheet-image" alt="Blueprint page" />
+      <div id="map-layer" style="position:absolute; inset:0; pointer-events:auto; z-index:2;"></div>
+    </div>
+
+    <div class="control buttons">
+      <button id="prev-btn" title="Previous (←)">Prev</button>
+      <button id="next-btn" title="Next (→)">Next</button>
+    </div>
+  </section>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" data-go="3">Back</button>
+  </div>
+</section>
+    
+</main>
+
+    <footer class="app-footer">
+      <span id="status-text">Ready.</span>
+    </footer>
+
+  </div>                <!-- wrapper ends -->
+
+<script src="./script.js?v=step4-0"></script>
+</body>
+</html>
