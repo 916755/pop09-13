@@ -591,8 +591,7 @@ if (window.state) {
     layer.style.position = 'absolute';
     layer.style.inset = '0';
     layer.style.pointerEvents = 'auto';
-    layer.style.zIndex = '10000'
-    layer.style.touchAction = 'none';
+    layer.style.zIndex = '10000';
 
     for (const r of _currentMap) __drawRect(r);
   }
