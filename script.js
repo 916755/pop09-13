@@ -161,7 +161,7 @@ img.addEventListener('dragstart', e => e.preventDefault(), { passive:false });
       const label = it.label || it.name || it.path || '';
       const cat = els.categorySelect?.value || '';
       if (cap) cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
-      setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);
+      setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);setCurrentSheetLabel(label);
       if (els.sheetSelect) els.sheetSelect.value = it.path;
     };
 
@@ -417,298 +417,183 @@ window.jumpToLabel = async function(raw){
   });
 })();
 
-// ====== MAPPING ENGINE (overlay for erection sheets) ======
-(() => {
-  // --- Local state ---
-  let _currentSheetLabel = '';
-  let _currentMap = [];           // [{x,y,w,h,label}]
-  let _wiredImageLoad = false;
-// === BULK IMPORT (CSV or NDJSON) → saves maps/<SHEET>.json and renders ===
-async function bulkImportHotspots(pastedText) {
-  function parseCSV(text) {
-    const lines = text.trim().split(/\r?\n/);
-    const header = lines.shift().split(',').map(s=>s.trim());
-    const req = ['sheet','target','x','y','w','h'];
-    req.forEach(k=>{ if(!header.includes(k)) throw new Error('CSV missing column: '+k); });
-    return lines.map((line, idx) => {
-      const cols = line.split(','); const row = {};
-      header.forEach((h,i)=> row[h]=cols[i]?.trim());
-      return row;
-    });
-  }
-  function parseNDJSON(text) {
-    return text.trim().split(/\r?\n/).map((line, i)=>{
-      try { return JSON.parse(line); } catch(e){ throw new Error('Bad JSON on line '+(i+1)); }
-    });
-  }
-  function toNumber(v){ const n = Number(v); if(!Number.isFinite(n)) throw new Error('Non-numeric: '+v); return n; }
 
-  const looksJSON = pastedText.trim().startsWith('{') || pastedText.trim().startsWith('[') || pastedText.trim().startsWith('{');
-  const looksNDJSON = /^[\s]*\{/.test(pastedText.trim()) && pastedText.includes('\n');
-  let rows;
-  if (looksNDJSON) rows = parseNDJSON(pastedText);
-  else rows = parseCSV(pastedText);
+// ====== MAPPING OVERLAY (single engine for erection sheets) ======
 
-  // validate + normalize
-  const bySheet = {};
-  for (const r of rows) {
-    const sheet = String(r.sheet || r.SHEET || r.page || '').trim();
-    const target = String(r.target || r.TAG || r.label || '').trim();
-    if (!sheet) throw new Error('Row missing "sheet"');
-    if (!target) throw new Error(`Row on sheet ${sheet} missing "target"`);
-    const x = toNumber(r.x), y = toNumber(r.y), w = toNumber(r.w), h = toNumber(r.h);
-    const label = (r.label ?? `${sheet}-${target}`).toString();
-    const confidence = r.confidence != null ? Number(r.confidence) : 1.0;
-    const rect = { x, y, w, h, label, target, meta:{confidence}};
-    (bySheet[sheet] ||= []).push(rect);
-  }
+let mapCurrentSheet = '';
+let mapRects = [];
 
-  // write per-sheet map files (app-side “virtual write” + re-render)
-  // You likely already have a saveMap(sheet, rects) helper; otherwise:
-  async function saveMap(sheet, rects){
-    // If you have a backend, POST here. For your file-based dev flow, we simulate:
-    // 1) expose a download to save maps locally, or
-    // 2) if running with a local server that supports PUT (optional), call it.
-    // Here we just stash in-memory and re-render.
-    window.__maps__ ||= {};
-    window.__maps__[sheet] = rects;
-    if (typeof console !== 'undefined') console.log(`[IMPORT] ${sheet}: +${rects.length} rects`);
-  }
-
-  for (const [sheet, rects] of Object.entries(bySheet)) {
-    await saveMap(sheet, rects);
-    if (typeof setCurrentSheetLabel === 'function' && typeof renderMapNow === 'function') {
-      setCurrentSheetLabel(sheet);
-      renderMapNow();
-      // --- Guard: clear any tag selection when switching to an erection sheet ---
-if (window.state) {
-  state.mode = 'erection';
-  state.category = 'Erection-E-0-11';  // adjust if you have other folders later
-  state.selectedTag = null;
-  state.jumpTag = null;
-  state.searchTerm = '';
+/**
+ * Get the main sheet image element (viewer).
+ */
+function mapGetImageEl() {
+  return document.getElementById('sheet-image') || document.getElementById('image');
 }
 
-    }
+/**
+ * Get or create the overlay layer that sits on top of the image.
+ */
+function mapGetLayer() {
+  let layer = document.getElementById('map-layer');
+  if (!layer) {
+    const wrapper = document.getElementById('image-wrapper') || document.getElementById('viewer-wrapper');
+    if (!wrapper) return null;
+    layer = document.createElement('div');
+    layer.id = 'map-layer';
+    wrapper.appendChild(layer);
   }
-
-  alert(`Imported ${rows.length} hotspots across ${Object.keys(bySheet).length} sheet(s). Low-confidence entries are flagged in meta.confidence.`);
+  return layer;
 }
 
-  // --- Helpers ---
-  const getImageEl = () => document.getElementById('sheet-image') || document.getElementById('image');
+/**
+ * Remove all hotspot boxes.
+ */
+function mapClear() {
+  const layer = mapGetLayer();
+  if (!layer) return;
+  while (layer.firstChild) layer.removeChild(layer.firstChild);
+}
 
-  const getMapLayer = () => document.getElementById('map-layer');
+/**
+ * Draw all rects for the current sheet as .map-hit boxes.
+ * Assumes rects are in *pixel* coordinates relative to the original image.
+ */
+function renderMapNow() {
+  const img = mapGetImageEl();
+  const layer = mapGetLayer();
+  if (!img || !layer) return;
 
-  // Guess a sheet like E3 / E-3 from the current item
-  function _guessSheetLabelFromItem(it){
-    const s = String(it?.label || it?.name || it?.path || '');
-    const m = s.match(/\b(E[-\s]?\d+)\b/i);
-    if (!m) return '';
-    const raw = m[1].toUpperCase().replace(/\s+/g,'');
-    // Normalize to no-hyphen form: E3
-    return raw.replace(/^E[-\s]?(\d+)/, 'E$1');
+  mapClear();
+
+  const naturalW = img.naturalWidth;
+  const naturalH = img.naturalHeight;
+  if (!naturalW || !naturalH) {
+    // Image not fully loaded yet; try again after load.
+    img.addEventListener('load', renderMapNow, { once: true });
+    return;
   }
 
-  function _scaleForImage() {
-    const img = getImageEl();
-    if (!img || !img.naturalWidth || !img.naturalHeight) {
-      return { kx: 1, ky: 1, left: 0, top: 0 };
-    }
-    const rect = img.getBoundingClientRect();
-    const rw = img.clientWidth || rect.width;
-    const rh = img.clientHeight || rect.height;
-    const kx = rw / img.naturalWidth;
-    const ky = rh / img.naturalHeight;
-    return { kx, ky, left: img.offsetLeft, top: img.offsetTop };
+  if (!Array.isArray(mapRects) || mapRects.length === 0) {
+    console.log('[MAP] No rects to render for', mapCurrentSheet);
+    return;
   }
 
-  function clearMap(){
-    const layer = getMapLayer();
-    if (layer) layer.innerHTML = '';
-  }
+  mapRects.forEach(rect => {
+    const x = Number(rect.x) || 0;
+    const y = Number(rect.y) || 0;
+    const w = Number(rect.w) || 0;
+    const h = Number(rect.h) || 0;
 
-  function __drawRect(r){
-    const layer = getMapLayer();
-    const img = getImageEl();
-    if (!layer || !img) return;
+    if (w <= 0 || h <= 0) return;
 
-    const { kx, ky, left, top } = _scaleForImage();
-    const x = Math.round(left + r.x * kx);
-    const y = Math.round(top  + r.y * ky);
-    const w = Math.max(1, Math.round(r.w * kx));
-    const h = Math.max(1, Math.round(r.h * ky));
+    const leftPct   = (x / naturalW) * 100;
+    const topPct    = (y / naturalH) * 100;
+    const widthPct  = (w / naturalW) * 100;
+    const heightPct = (h / naturalH) * 100;
 
     const hit = document.createElement('div');
-    hit.className = 'hit';
-    Object.assign(hit.style, {
-      position: 'absolute',
-      left: x + 'px',
-      top: y + 'px',
-      width: w + 'px',
-      height: h + 'px',
-      border: '2px dashed rgba(255,255,255,0.8)',
-      boxSizing: 'border-box',
-      cursor: 'pointer'
-    });
+    hit.className = 'map-hit';
+    hit.style.position = 'absolute';
+    hit.style.left   = leftPct + '%';
+    hit.style.top    = topPct + '%';
+    hit.style.width  = widthPct + '%';
+    hit.style.height = heightPct + '%';
 
-    const lab = document.createElement('div');
-    lab.className = 'label';
-    lab.textContent = r.label || '';
-    Object.assign(lab.style, {
-      position: 'absolute',
-      left: x + 'px',
-      top: (y - 4) + 'px',
-      background: 'rgba(0,0,0,0.65)',
-      color: '#fff',
-      fontSize: '12px',
-      lineHeight: '1',
-      padding: '2px 6px',
-      borderRadius: '8px',
-      pointerEvents: 'none'
-    });
+    const label = rect.label || rect.tag || '';
+    if (label) {
+      hit.dataset.label = label;
+      hit.title = label;
+    }
 
-    hit.addEventListener('click', (e) => {
-      e.stopPropagation();
-      if (r.label) window.jumpToLabel?.(r.label);
+    // Click → jump to that tag/sheet
+    hit.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      const raw = ev.currentTarget.dataset.label || '';
+      const upper = String(raw).trim().toUpperCase();
+
+      // If label looks like "E3-133B", strip sheet part → "133B"
+      const core = upper.split('-').slice(-1)[0];
+
+      console.log('[MAP] Click hotspot →', raw, 'core', core);
+
+      if (typeof window.jumpToLabel === 'function') {
+        window.jumpToLabel(core || raw);
+      }
     });
 
     layer.appendChild(hit);
-    layer.appendChild(lab);
-  }
+  });
 
-  function renderMapNow(){
-    const img = getImageEl();
-    const layer = getMapLayer();
-    if (!img || !layer) return;
-
-    clearMap();
-    if (!img.complete || !img.naturalWidth) return;
-
-    const wrap = document.getElementById('image-wrapper');
-    if (wrap && getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
-
-    layer.style.position = 'absolute';
-    layer.style.inset = '0';
-    layer.style.pointerEvents = 'auto';
-    layer.style.zIndex = '10000';
-
-    for (const r of _currentMap) __drawRect(r);
-  }
-  window.renderMapNow = renderMapNow;
-
- // Load maps/<SHEET>.json with smart name + schema handling
-async function __loadMapForSheet(sheetLabel) {
-  _currentMap = [];
-  clearMap();
-  if (!sheetLabel) return;
-  const jobId = window.currentJob?.id;
-  if (!jobId) return;
-
-  // --- normalization line (add this right here) ---
-  sheetLabel = sheetLabel.replace(/-/g, ""); // normalize: E-3 → E3
-  // ------------------------------------------------
-
-  const base = `jobs/${jobId}/maps/`;
-  const cand = [];
-  const push = (s) => { if (s && !cand.includes(s)) cand.push(s); };
-
-  // Try: as-is, no-hyphen, with-hyphen
-  push(sheetLabel);
-  push(sheetLabel.replace(/^E[-\s]?\s*(\d+)/, "E$1"));
-
-  // Normalize various schemas to [{x,y,w,h,label}]
-  const norm = (data) => {
-    if (!data) return [];
-    const list = Array.isArray(data)
-      ? data
-      : (Array.isArray(data.hotspots) ? data.hotspots : []);
-    const out = [];
-    for (const it of list) {
-      if (!it) continue;
-      let x, y, w, h, label;
-      label = it.label || it.name || "";
-      if (Array.isArray(it.rect) && it.rect.length >= 4) {
-        [x, y, w, h] = it.rect.map(n => Number(n) || 0);
-      } else {
-        x = Number(it.x) || 0;
-        y = Number(it.y) || 0;
-        w = Number(it.w) || 0;
-        h = Number(it.h) || 0;
-      }
-      if (w > 0 && h > 0) out.push({ x, y, w, h, label });
-    }
-    return out;
-  };
-
-  // Try each candidate filename until one loads
-  for (const name of cand) {
-    const url = `${base}${name}.json`;
-    try {
-      const res = await fetch(url, { cache: "no-store" });
-      if (!res.ok) continue;
-      const data = await res.json();
-      const out = norm(data);
-      _currentMap = out;
-      console.log(`[STATUS] Map loaded for ${sheetLabel} (${out.length} hotspots) via ${name}.json`);
-      return;
-    } catch (err) {
-      // try next candidate
-    }
-  }
-
-  // Nothing found
-  _currentMap = [];
-  console.log(`[STATUS] No map found for ${sheetLabel} (tried: ${cand.join(", ")})`);
+  console.log('[MAP] Rendered', mapRects.length, 'boxes for', mapCurrentSheet);
 }
 
-  // Public API
-  window.setCurrentSheetLabel = async function setCurrentSheetLabel(label){
-    _currentSheetLabel = String(label || '').trim();
-    await __loadMapForSheet(_currentSheetLabel);
+window.renderMapNow = renderMapNow;
+
+/**
+ * Load jobs/<currentJob.id>/maps/<label>.json
+ * and normalize rects.
+ */
+async function loadMapForSheet(label) {
+  const job = window.currentJob;
+  if (!job || !job.id) {
+    console.warn('[MAP] No job set; cannot load map for', label);
+    mapRects = [];
+    mapClear();
+    return;
+  }
+
+  const sheetLabel = String(label || '').trim();
+  if (!sheetLabel) {
+    mapRects = [];
+    mapClear();
+    return;
+  }
+
+  const url = `jobs/${job.id}/maps/${sheetLabel}.json`;
+
+  try {
+    const res = await fetch(url, { cache: 'no-store' });
+    if (!res.ok) {
+      console.warn('[MAP] No map file for', sheetLabel, url, res.status);
+      setStatus(`No map found for ${sheetLabel} (tried: ${sheetLabel})`);
+      mapRects = [];
+      mapClear();
+      return;
+    }
+
+    const data = await res.json();
+    // Accept either [{...}] or { rects: [...] }
+    const rects = Array.isArray(data) ? data : (data.rects || []);
+    mapRects = rects || [];
+    mapCurrentSheet = sheetLabel;
+
+    setStatus(`Map loaded for ${sheetLabel} (${mapRects.length} hotspots) via ${sheetLabel}.json`);
+    console.log('[MAP] Loaded', mapRects.length, 'rect(s) for', sheetLabel, 'from', url);
+
     renderMapNow();
-    window.setStatus?.(`Map loaded for ${_currentSheetLabel} (${_currentMap.length} hotspots)`);
-  };
-
-  // Keep overlay in sync with whatever image is showing
-  async function _autoSetFromCurrentItem(){
-    const it = window._items?.[window._pos];
-    const guess = _guessSheetLabelFromItem(it);
-    if (guess && guess !== _currentSheetLabel) {
-      await window.setCurrentSheetLabel(guess);
-    } else {
-      if (!guess) { _currentMap = []; clearMap(); }
-      else renderMapNow();
-    }
+  } catch (err) {
+    console.error('[MAP] Error loading map for', sheetLabel, err);
+    setStatus(`Map error for ${sheetLabel}`);
+    mapRects = [];
+    mapClear();
   }
+}
 
-  function _ensureImageWires(){
-    if (_wiredImageLoad) return;
-    _wiredImageLoad = true;
-
-    const img = getImageEl();
-    if (img){
-      img.addEventListener('load', () => { _autoSetFromCurrentItem(); });
-      if (img.complete) setTimeout(renderMapNow, 0);
-    }
-
-    window.addEventListener('resize', () => renderMapNow());
-    // Keep overlays in step with UI changes if those elements exist
-    window.addEventListener('popstate', () => setTimeout(_autoSetFromCurrentItem, 0));
-    document.getElementById('category-select')?.addEventListener('change', () => setTimeout(_autoSetFromCurrentItem, 0));
-    document.getElementById('sheet-select')?.addEventListener('change',   () => setTimeout(_autoSetFromCurrentItem, 0));
-    document.getElementById('filter-input')?.addEventListener('input',    () => setTimeout(_autoSetFromCurrentItem, 0));
+/**
+ * Called whenever the viewer changes sheets.
+ * Your _show() function already calls setCurrentSheetLabel(label).
+ */
+window.setCurrentSheetLabel = async function(label) {
+  mapCurrentSheet = String(label || '').trim();
+  if (!mapCurrentSheet) {
+    mapRects = [];
+    mapClear();
+    return;
   }
+  await loadMapForSheet(mapCurrentSheet);
+};
 
-  // Hook into your viewer's _show, if present
-  const _origShow = window._show;
-  window._show = function(i){
-    _origShow?.(i);
-    _ensureImageWires();
-    const img = getImageEl();
-    if (img?.complete) _autoSetFromCurrentItem();
-  };
-  // expose importer so you can call it from console
-window.bulkImportHotspots = bulkImportHotspots;
-
-})();
+// Keep overlay roughly in sync on resize
+window.addEventListener('resize', () => {
+  renderMapNow();
+});

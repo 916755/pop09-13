@@ -102,14 +102,8 @@ button[disabled]{ opacity:.55; cursor:not-allowed; }
   grid-template-rows: 1fr auto;
   min-height: 0;
 }
-#image-wrapper {
-  overflow: auto;
-  width: 100%;
-  height: 70vh;      /* big, centered viewport */
-  display: grid;
-  align-items: start;
-  justify-items: center;
-}
+
+
 #image {
   width: 100%;
   height: auto;
@@ -190,13 +184,8 @@ body > .page {
   box-sizing: border-box;
 }
 
-.step { max-width: 720px; width: 100%; margin: 24px auto; }
-#image-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 8px;
-}
+
+
 
 #image {
   max-width: 90vw;
@@ -211,156 +200,47 @@ body {
   display: block !important; 
   margin: 0;
 }
-/* ===== Mapping overlay ===== */
-#map-layer .hit {
-  position: absolute;
-  outline: 2px dashed;
-  cursor: pointer;
-  pointer-events: auto; /* allow clicking */
-}
-
-#map-layer .hit:hover {
-  outline-style: solid;
-}
-
-#map-layer .label {
-  position: absolute;
-  font: 12px/1.2 sans-serif;
-  padding: 2px 4px;
-  background: rgba(255,255,255,0.85);
-  border-radius: 4px;
-  pointer-events: none;
-  transform: translateY(-100%); /* floats label just above the box */
-}
-/* Ensure wrapper can host absolute overlay */
-#image-wrapper {
-  position: relative; /* safe even if already set in JS */
-}
-
-/* The blueprint image shouldn’t “drag” or select text */
-#image {
-  user-select: none;
-  -webkit-user-drag: none;
-  /* touch-action removed so phone can zoom */
-}
 
 
-/* Overlay that receives your clicks/drags */
+/* ===== Mapping overlay (PoP — final) ===== */
+
+
+/* Transparent overlay that sits on top of the image area */
 #map-layer {
   position: absolute;
   inset: 0;
-  pointer-events: auto;
-  cursor: crosshair;
-  z-index: 10000;
-  user-select: none;
-  /* touch-action removed so pinch zoom still works */
+  z-index: 20;
+  pointer-events: none;   /* layer ignores clicks; children receive them */
 }
 
-
-/* Hotspot rectangles + floating labels */
-#map-layer .hit {
+/* Clickable hotspot boxes for erection sheet maps */
+.map-hit {
   position: absolute;
-  border: 2px dashed rgba(255,255,255,0.9);
   box-sizing: border-box;
-  pointer-events: auto;      /* clickable hotspots */
+  border: none;                 /* no visible border */
+  background: transparent;      /* no fill */
+  pointer-events: auto;         /* still clickable */
+  cursor: pointer;
 }
 
-#map-layer .label {
-  position: absolute;
-  background: rgba(0,0,0,0.65);
-  color: #fff;
-  font-size: 12px;
-  line-height: 1;
-  padding: 2px 6px;
-  border-radius: 8px;
-  pointer-events: none;      /* label doesn’t steal clicks */
-}
-/* Prevent image from being dragged/selected */
-/* --- Mapping overlay visibility fix --- */
+
+
+/* Wrapper for blueprint image + overlay */
 #image-wrapper {
-  position: relative;
+  position: relative;   /* anchor for #map-layer */
+  display: inline-block;
 }
 
-#map-layer {
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 100%;
-  height: 100%;
-  z-index: 9999;
-  pointer-events: none;
-}
 
-#map-layer .hit {
-  position: absolute;
-  border: 2px dashed lime;
-  background: rgba(0, 255, 0, 0.15);
-  display: block;
-  opacity: 1;
-  z-index: 10000;
-}
-/* Viewer sizing + image display */
-#image-wrapper { 
-  position: relative; 
-  width: min(95vw, 1200px);   /* make it wide enough to see */
-  margin: 0 auto; 
-}
 
-#sheet-image {              /* ensure the image actually shows */
-  display: block;
+/* Make blueprint / cut-sheet images fit inside the viewer box */
+#sheet-image,
+#image-wrapper img,
+#image {
   max-width: 100%;
+  max-height: 100%;
+  width: auto;
   height: auto;
-}
-
-#map-layer {                /* overlay on top of the image area */
-  position: absolute;
-  inset: 0;
-  z-index: 9999;
-  pointer-events: none;
-}
-/* === Mobile full-screen viewer for Step 4 === */
-@media (max-width: 768px) {
-  html, body {
-    height: 100%;
-    margin: 0;
-    padding: 0;
-  }
-
-  /* Step 4 container – adjust if your id is different */
-  #step-4 {
-    position: fixed;
-    inset: 0;              /* top:0; right:0; bottom:0; left:0; */
-    background: #000;
-    display: flex;
-    flex-direction: column;
-    z-index: 1000;         /* make sure it sits on top */
-  }
-
-  /* The main image area */
-  #image-wrapper {
-    position: relative;
-    flex: 1 1 auto;
-    overflow: hidden;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: #000;
-  }
-
-  /* The blueprint image itself */
-  #sheet-image {
-    max-width: 100%;
-    max-height: 100%;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;   /* show the whole sheet, no cropping */
-    touch-action: pan-x pan-y;  /* allow pinch + drag */
-  }
-
-  /* Map overlay still sits on top */
-  #map-layer {
-    position: absolute;
-    inset: 0;
-    pointer-events: none;  /* hotspots themselves will still listen */
-  }
+  object-fit: contain;
+  display: block;
 }
