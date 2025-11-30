@@ -353,11 +353,8 @@ document.addEventListener('click', (ev) => {
     initTypeSelector();
   }
 })();
-
 // ---------- Type-aware Access Code (no jobs.json) ----------
 (() => {
-  const TYPES = ['industrial', 'commercial', 'institutional', 'residential', 'special'];
-
   async function tryIndex(base) {
     try {
       const r = await fetch(`jobs/${base}/index/assets-index.json`, { cache: 'no-store' });
@@ -370,16 +367,26 @@ document.addEventListener('click', (ev) => {
   async function pickBase() {
     const cand = [];
 
+    // If there is already an image loaded from a job, keep that as a fallback.
     const imgSrc = document.getElementById('image')?.src || '';
     const m = imgSrc.match(/\/jobs\/(.+?)\/(?:images|index)\b/);
-    if (m) cand.push(m[1]);
+    if (m) cand.push(m[1]); // e.g. "industrial/24-36N"
 
-    const type = document.getElementById('type-select')?.value || '';
-    const code = document.getElementById('job-input')?.value || '';
+    const typeEl = document.getElementById('type-select');
+    const inputEl = document.getElementById('job-input');
+    const type = typeEl?.value || '';
+    const code = (inputEl?.value || '').trim();
+
     if (code) {
-      if (type) cand.push(`${type}/${code}`);
-      cand.push(code);
-      TYPES.forEach(t => cand.push(`${t}/${code}`));
+      if (type) {
+        // STRICT: if a type is chosen, only look under that type.
+        // e.g. "industrial/24-36N"
+        cand.push(`${type}/${code}`);
+      } else {
+        // No type selected: treat the code as a full base path,
+        // e.g. "industrial/24-36N" or "test-job".
+        cand.push(code);
+      }
     }
 
     const seen = new Set();
@@ -394,7 +401,7 @@ document.addEventListener('click', (ev) => {
   window.applyAccessCode = async function applyAccessCode() {
     const base = await pickBase();
     if (!base) {
-      setStatus('Index not found. Check /jobs/<type>/<code>/index/assets-index.json');
+      setStatus('Index not found. Check type and access code (jobs/<type>/<code>/index/assets-index.json).');
       if (els.step1Next) els.step1Next.disabled = true;
       return false;
     }
@@ -410,6 +417,7 @@ document.addEventListener('click', (ev) => {
     return true;
   };
 })();
+
 
 // ---------- Step-1 harness (Access → load → Step 2) ----------
 (() => {
