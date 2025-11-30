@@ -13,69 +13,83 @@ const els = {
   step3Next: document.querySelector('#step-3 .next-btn'),
 };
 Object.defineProperty(els, 'image', {
-  get(){ return document.getElementById('sheet-image') || document.getElementById('image'); }
+  get () { return document.getElementById('sheet-image') || document.getElementById('image'); }
 });
 
-
-function setStatus(msg){ if(els.status) els.status.textContent = msg; console.log('[STATUS]', msg); }
+function setStatus(msg) {
+  if (els.status) els.status.textContent = msg;
+  console.log('[STATUS]', msg);
+}
 window.setStatus = setStatus;
 
 // ---------- URL resolver ----------
-function resolveImageUrl(item, kind='image'){
+function resolveImageUrl(item, kind = 'image') {
   const job = window.currentJob || {};
-  const jobRoot  = job.id ? `jobs/${job.id}/` : 'jobs/';
+  const jobRoot = job.id ? `jobs/${job.id}/` : 'jobs/';
   const imagesDir = (job.imagesDir || `${jobRoot}images/`).replace(/^\.\/+/, '');
   const thumbsDir = (job.thumbsDir || `${jobRoot}thumbs/`).replace(/^\.\/+/, '');
-  let raw = (kind==='thumb'
+  let raw = (kind === 'thumb'
     ? (item.thumb || item.thumbnail || item.thumbPath || '')
     : (item.image || item.path || item.file || '')
   ) || '';
 
   if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
 
-  let s = String(raw).replace(/^\.\/+/, '').replace(/\\/g,'/');
+  let s = String(raw).replace(/^\.\/+/, '').replace(/\\/g, '/');
   if (job.id && s.startsWith(`jobs/${job.id}/`)) return s;
   if (s.startsWith('images/')) return imagesDir + s.slice(7);
   if (s.startsWith('thumbs/')) return thumbsDir + s.slice(7);
   if (s.startsWith('assets/')) return jobRoot + s;
   if (s.includes('/')) return imagesDir + s;
-  return (kind==='thumb' ? thumbsDir : imagesDir) + s;
+  return (kind === 'thumb' ? thumbsDir : imagesDir) + s;
 }
-function buildSrc(_jobId, it){ return resolveImageUrl(it,'image'); }
+function buildSrc(_jobId, it) { return resolveImageUrl(it, 'image'); }
 
 // ---------- Helpers ----------
-function makeOptions(list, first='Select...'){
+function makeOptions(list, first = 'Select...') {
   const o = [`<option value="">${first}</option>`];
   for (const it of list) {
-    if (typeof it === 'string') o.push(`<option value="${it}">${it}</option>`);
-    else if (it && typeof it === 'object')
-      o.push(`<option value="${it.value ?? it.name ?? ''}">${it.label ?? it.name ?? it.value ?? ''}</option>`);
+    if (typeof it === 'string') {
+      o.push(`<option value="${it}">${it}</option>`);
+    } else if (it && typeof it === 'object') {
+      o.push(
+        `<option value="${it.value ?? it.name ?? ''}">${it.label ?? it.name ?? it.value ?? ''}</option>`
+      );
+    }
   }
   return o.join('');
 }
+
 function naturalByLabel(a, b) {
   const pick = (x) => (x?.label ?? x?.name ?? x?.tag ?? x?.path ?? '').toString();
   return pick(a).localeCompare(pick(b), undefined, { numeric: true, sensitivity: 'base' });
 }
+
 function group(items) {
   const out = { All: [] };
   for (const it of items) {
     const rawPath = String(it.path || it.image || it.file || '').replace(/^\.\//, '');
     const segs = rawPath.split('/');
     let cat = '';
+
     for (const marker of ['images', 'assets']) {
       const idx = segs.findIndex(s => s.toLowerCase() === marker);
-      if (idx !== -1 && segs[idx + 1] && segs.length > idx + 2) { cat = segs[idx + 1]; break; }
+      if (idx !== -1 && segs[idx + 1] && segs.length > idx + 2) {
+        cat = segs[idx + 1];
+        break;
+      }
     }
+
     if (!cat) {
       const base = (it.label || it.name || segs.at(-1) || '');
       const m = base.match(/^([A-Za-z]+)[-_]/);
       cat = m ? m[1] : 'Misc';
     }
+
     const norm = {
-      name:  it.name  || it.label || segs.at(-1) || 'item',
-      label: it.label || it.name  || rawPath,
-      path:  it.image || it.path  || it.file     || rawPath,
+      name: it.name || it.label || segs.at(-1) || 'item',
+      label: it.label || it.name || rawPath,
+      path: it.image || it.path || it.file || rawPath,
       thumb: it.thumb || it.thumbnail || it.thumbPath
     };
     (out[cat] ||= []).push(norm);
@@ -85,8 +99,11 @@ function group(items) {
 }
 
 // ---------- Load index for current job ----------
-async function loadIndexForCurrentJob(){
-  if (!window.currentJob?.indexUrl){ setStatus('No access code set.'); return; }
+async function loadIndexForCurrentJob() {
+  if (!window.currentJob?.indexUrl) {
+    setStatus('No access code set.');
+    return;
+  }
   setStatus('Loading index…');
   try {
     console.log('[DEBUG] indexUrl =', window.currentJob.indexUrl);
@@ -94,10 +111,15 @@ async function loadIndexForCurrentJob(){
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const raw = await res.json();
     const arr = Array.isArray(raw) ? raw : Object.values(raw || {}).flat();
-    if (!arr.length){ setStatus('No items in index.'); return; }
+    if (!arr.length) {
+      setStatus('No items in index.');
+      return;
+    }
 
     const groups = group(arr);
-    Object.keys(groups).forEach(k => { groups[k] = (groups[k] || []).slice().sort(naturalByLabel); });
+    Object.keys(groups).forEach(k => {
+      groups[k] = (groups[k] || []).slice().sort(naturalByLabel);
+    });
     window.currentIndex = groups;
 
     // categories
@@ -106,9 +128,14 @@ async function loadIndexForCurrentJob(){
       if (b === 'All' && a !== 'All') return -1;
       return a.localeCompare(b);
     });
+
     if (els.categorySelect) {
       els.categorySelect.innerHTML = makeOptions(
-        cats.map(c => ({ value: c, label: `${c} (${(groups[c] || []).length})` })), 'Select a category'
+        cats.map(c => ({
+          value: c,
+          label: `${c} (${(groups[c] || []).length})`
+        })),
+        'Select a category'
       );
       els.categorySelect.value = '';
     }
@@ -121,26 +148,39 @@ async function loadIndexForCurrentJob(){
     window._pos = 0;
 
     // viewer show
-    window._show = function(i){
+    window._show = function (i) {
       window._pos = Math.max(0, Math.min(i, window._items.length - 1));
       const it = window._items[window._pos];
       const img = els.image;
-      if (!img) { console.warn('[SHOW] no #image element'); return; }
+      if (!img) {
+        console.warn('[SHOW] no #image element');
+        return;
+      }
 
       const wrap = document.getElementById('image-wrapper');
-      if (wrap && getComputedStyle(wrap).position === 'static') wrap.style.position = 'relative';
+      if (wrap && getComputedStyle(wrap).position === 'static') {
+        wrap.style.position = 'relative';
+      }
 
       let cap = document.getElementById('image-caption');
       if (!cap && wrap) {
         cap = document.createElement('div');
         cap.id = 'image-caption';
         Object.assign(cap.style, {
-          position: 'absolute', left: '12px', bottom: '12px',
-          padding: '6px 10px', borderRadius: '10px',
-          background: 'rgba(0,0,0,0.65)', color: '#fff',
-          fontSize: '14px', lineHeight: '1.2', pointerEvents: 'none',
-          maxWidth: 'calc(100% - 24px)', whiteSpace: 'nowrap',
-          overflow: 'hidden', textOverflow: 'ellipsis'
+          position: 'absolute',
+          left: '12px',
+          bottom: '12px',
+          padding: '6px 10px',
+          borderRadius: '10px',
+          background: 'rgba(0,0,0,0.65)',
+          color: '#fff',
+          fontSize: '14px',
+          lineHeight: '1.2',
+          pointerEvents: 'none',
+          maxWidth: 'calc(100% - 24px)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis'
         });
         wrap.appendChild(cap);
       }
@@ -153,20 +193,23 @@ async function loadIndexForCurrentJob(){
 
       img.src = buildSrc(window.currentJob.id, it);
       img.setAttribute('draggable', 'false');
-img.style.userSelect = 'none';
-img.style.webkitUserDrag = 'none';
-img.addEventListener('dragstart', e => e.preventDefault(), { passive:false });
+      img.style.userSelect = 'none';
+      img.style.webkitUserDrag = 'none';
+      img.addEventListener('dragstart', e => e.preventDefault(), { passive: false });
       img.onerror = () => console.warn('IMAGE LOAD FAILED:', img.src);
 
       const label = it.label || it.name || it.path || '';
       const cat = els.categorySelect?.value || '';
-      if (cap) cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
-      setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);setCurrentSheetLabel(label);
+      if (cap) {
+        cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
+      }
+      setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);
+      setCurrentSheetLabel(label);
       if (els.sheetSelect) els.sheetSelect.value = it.path;
     };
 
     // wire once
-    if (!window._wired){
+    if (!window._wired) {
       window._wired = true;
 
       els.categorySelect?.addEventListener('change', () => {
@@ -176,12 +219,20 @@ img.addEventListener('dragstart', e => e.preventDefault(), { passive:false });
 
         const q = (els.filterInput?.value || '').toLowerCase();
         window._items = q
-          ? base.filter(it => (`${it.name||''} ${it.label||''} ${it.path||''}`).toLowerCase().includes(q))
+          ? base.filter(it =>
+              (`${it.name || ''} ${it.label || ''} ${it.path || ''}`)
+                .toLowerCase()
+                .includes(q)
+            )
           : base;
 
         if (els.sheetSelect) {
           els.sheetSelect.innerHTML = makeOptions(
-            window._items.map(x => ({ value: x.path, label: x.label || x.name || x.path })), 'Select a sheet'
+            window._items.map(x => ({
+              value: x.path,
+              label: x.label || x.name || x.path
+            })),
+            'Select a sheet'
           );
         }
         if (window._items.length) {
@@ -205,12 +256,20 @@ img.addEventListener('dragstart', e => e.preventDefault(), { passive:false });
         const base = window.currentIndex[cat] || [];
         const q = (els.filterInput.value || '').toLowerCase();
         window._items = q
-          ? base.filter(it => (`${it.name||''} ${it.label||''} ${it.path||''}`).toLowerCase().includes(q))
+          ? base.filter(it =>
+              (`${it.name || ''} ${it.label || ''} ${it.path || ''}`)
+                .toLowerCase()
+                .includes(q)
+            )
           : base;
 
         if (els.sheetSelect) {
           els.sheetSelect.innerHTML = makeOptions(
-            window._items.map(x => ({ value: x.path, label: x.label || x.name || x.path })), 'Select a sheet'
+            window._items.map(x => ({
+              value: x.path,
+              label: x.label || x.name || x.path
+            })),
+            'Select a sheet'
           );
         }
         if (window._items.length) {
@@ -227,7 +286,11 @@ img.addEventListener('dragstart', e => e.preventDefault(), { passive:false });
       document.getElementById('next-btn')?.addEventListener('click', () => _show(window._pos + 1));
     }
 
-    setStatus(`Index loaded. ${Object.keys(groups).length} categor${Object.keys(groups).length===1?'y':'ies'} found.`);
+    setStatus(
+      `Index loaded. ${Object.keys(groups).length} categor${
+        Object.keys(groups).length === 1 ? 'y' : 'ies'
+      } found.`
+    );
   } catch (err) {
     console.error(err);
     setStatus('Failed to load index.');
@@ -245,6 +308,21 @@ document.addEventListener('click', (e) => {
   const next = document.getElementById(`step-${n}`);
   if (next) next.classList.add('active');
 });
+// === Back button capture: return to previous sheet if we came from click-and-fetch ===
+document.addEventListener('click', (ev) => {
+  const btn = ev.target.closest('.back-btn');
+  if (!btn) return;
+
+  if (window._returnToSheet && typeof window.jumpToLabel === 'function') {
+    const sheet = window._returnToSheet;
+    window._returnToSheet = null;           // use it once then clear
+    console.log('[BACK] Returning to sheet:', sheet);
+
+    ev.preventDefault();
+    ev.stopPropagation();                   // stop normal step-nav for this click
+    window.jumpToLabel(sheet);              // go back to E3, E4, etc.
+  }
+}, true); // capture phase
 
 // ---------- Type selector ----------
 (() => {
@@ -278,13 +356,20 @@ document.addEventListener('click', (e) => {
 
 // ---------- Type-aware Access Code (no jobs.json) ----------
 (() => {
-  const TYPES = ["industrial","commercial","institutional","residential","special"];
-  async function tryIndex(base){
-    try { const r = await fetch(`jobs/${base}/index/assets-index.json`, {cache:'no-store'}); return r.ok; }
-    catch { return false; }
+  const TYPES = ['industrial', 'commercial', 'institutional', 'residential', 'special'];
+
+  async function tryIndex(base) {
+    try {
+      const r = await fetch(`jobs/${base}/index/assets-index.json`, { cache: 'no-store' });
+      return r.ok;
+    } catch {
+      return false;
+    }
   }
-  async function pickBase(){
+
+  async function pickBase() {
     const cand = [];
+
     const imgSrc = document.getElementById('image')?.src || '';
     const m = imgSrc.match(/\/jobs\/(.+?)\/(?:images|index)\b/);
     if (m) cand.push(m[1]);
@@ -296,6 +381,7 @@ document.addEventListener('click', (e) => {
       cand.push(code);
       TYPES.forEach(t => cand.push(`${t}/${code}`));
     }
+
     const seen = new Set();
     for (const base of cand) {
       if (!base || seen.has(base)) continue;
@@ -304,6 +390,7 @@ document.addEventListener('click', (e) => {
     }
     return '';
   }
+
   window.applyAccessCode = async function applyAccessCode() {
     const base = await pickBase();
     if (!base) {
@@ -327,11 +414,12 @@ document.addEventListener('click', (e) => {
 // ---------- Step-1 harness (Access → load → Step 2) ----------
 (() => {
   const input = els.jobInput;
-  const next  = els.step1Next;
+  const next = els.step1Next;
   if (!input || !next) return;
 
   const enable = () => { next.disabled = !input.value.trim(); };
-  input.addEventListener('input', enable); enable();
+  input.addEventListener('input', enable);
+  enable();
 
   async function go() {
     try {
@@ -352,20 +440,25 @@ document.addEventListener('click', (e) => {
 })();
 
 // ===== JUMP (uses window.currentIndex built by loadIndexForCurrentJob) =====
-function __normTag(s){ return String(s||'').replace(/[^0-9A-Za-z]/g,'').toUpperCase(); }
+function __normTag(s) {
+  return String(s || '').replace(/[^0-9A-Za-z]/g, '').toUpperCase();
+}
 
-window.jumpToLabel = async function(raw){
-  const q = String(raw||'').trim();
-  if (!q) { setStatus?.('Type a tag (e.g., 133B)'); return; }
+window.jumpToLabel = async function (raw) {
+  const q = String(raw || '').trim();
+  if (!q) {
+    setStatus?.('Type a tag (e.g., 133B)');
+    return;
+  }
 
   const idx = window.currentIndex || {};
-  const catSel   = els.categorySelect;
+  const catSel = els.categorySelect;
   const sheetSel = els.sheetSelect;
   const want = __normTag(q);
 
-  const searchCat = (key)=>{
+  const searchCat = (key) => {
     const arr = idx[key] || [];
-    for (let i=0;i<arr.length;i++){
+    for (let i = 0; i < arr.length; i++) {
       const it = arr[i];
       const label = it.label || it.name || it.path || '';
       if (__normTag(label) === want) return { key, i, item: it };
@@ -374,26 +467,34 @@ window.jumpToLabel = async function(raw){
   };
 
   let found = searchCat(catSel?.value);
-  if (!found){
-    for (const k of Object.keys(idx)){ if ((found = searchCat(k))) break; }
+  if (!found) {
+    for (const k of Object.keys(idx)) {
+      if ((found = searchCat(k))) break;
+    }
   }
-  if (!found){ setStatus?.(`Not found: ${q}`); return; }
+  if (!found) {
+    setStatus?.(`Not found: ${q}`);
+    return;
+  }
 
-  if (catSel && catSel.value !== found.key){
+  if (catSel && catSel.value !== found.key) {
     catSel.value = found.key;
-    catSel.dispatchEvent(new Event('change', {bubbles:true}));
+    catSel.dispatchEvent(new Event('change', { bubbles: true }));
     await new Promise(r => setTimeout(r, 0)); // let #sheet-select rebuild
   }
 
-  if (sheetSel){
+  if (sheetSel) {
     const targetPath = found.item.path;
     let optIndex = -1;
-    for (let i=0;i<sheetSel.options.length;i++){
-      if (sheetSel.options[i].value === targetPath) { optIndex = i; break; }
+    for (let i = 0; i < sheetSel.options.length; i++) {
+      if (sheetSel.options[i].value === targetPath) {
+        optIndex = i;
+        break;
+      }
     }
     if (optIndex < 0) optIndex = Math.min(found.i, sheetSel.options.length - 1);
     sheetSel.selectedIndex = Math.max(0, optIndex);
-    sheetSel.dispatchEvent(new Event('change', {bubbles:true}));
+    sheetSel.dispatchEvent(new Event('change', { bubbles: true }));
   }
 
   setStatus?.(`Jumped to ${found.key} → ${found.item.label || q}`);
@@ -401,7 +502,7 @@ window.jumpToLabel = async function(raw){
 };
 
 // ---- Wire inline Jump button & Enter key ----
-(function wireJump(){
+(function wireJump() {
   const read = () =>
     (document.getElementById('jump-input')?.value || els.sheetSelect?.value || '').trim();
 
@@ -416,7 +517,6 @@ window.jumpToLabel = async function(raw){
     }
   });
 })();
-
 
 // ====== MAPPING OVERLAY (single engine for erection sheets) ======
 
@@ -486,17 +586,17 @@ function renderMapNow() {
 
     if (w <= 0 || h <= 0) return;
 
-    const leftPct   = (x / naturalW) * 100;
-    const topPct    = (y / naturalH) * 100;
-    const widthPct  = (w / naturalW) * 100;
+    const leftPct = (x / naturalW) * 100;
+    const topPct = (y / naturalH) * 100;
+    const widthPct = (w / naturalW) * 100;
     const heightPct = (h / naturalH) * 100;
 
     const hit = document.createElement('div');
     hit.className = 'map-hit';
     hit.style.position = 'absolute';
-    hit.style.left   = leftPct + '%';
-    hit.style.top    = topPct + '%';
-    hit.style.width  = widthPct + '%';
+    hit.style.left = leftPct + '%';
+    hit.style.top = topPct + '%';
+    hit.style.width = widthPct + '%';
     hit.style.height = heightPct + '%';
 
     const label = rect.label || rect.tag || '';
@@ -507,12 +607,13 @@ function renderMapNow() {
 
     // Click → jump to that tag/sheet
     hit.addEventListener('click', (ev) => {
+      // remember which sheet we came from (E3, E4, etc.) – safe even if unused
+      window._returnToSheet = window.currentSheetLabel;
+
       ev.stopPropagation();
       const raw = ev.currentTarget.dataset.label || '';
       const upper = String(raw).trim().toUpperCase();
-
-      // If label looks like "E3-133B", strip sheet part → "133B"
-      const core = upper.split('-').slice(-1)[0];
+      const core = upper.split('-').slice(-1)[0]; // "E3-133B" → "133B"
 
       console.log('[MAP] Click hotspot →', raw, 'core', core);
 
@@ -526,7 +627,6 @@ function renderMapNow() {
 
   console.log('[MAP] Rendered', mapRects.length, 'boxes for', mapCurrentSheet);
 }
-
 window.renderMapNow = renderMapNow;
 
 /**
@@ -562,7 +662,6 @@ async function loadMapForSheet(label) {
     }
 
     const data = await res.json();
-    // Accept either [{...}] or { rects: [...] }
     const rects = Array.isArray(data) ? data : (data.rects || []);
     mapRects = rects || [];
     mapCurrentSheet = sheetLabel;
@@ -583,8 +682,11 @@ async function loadMapForSheet(label) {
  * Called whenever the viewer changes sheets.
  * Your _show() function already calls setCurrentSheetLabel(label).
  */
-window.setCurrentSheetLabel = async function(label) {
+window.setCurrentSheetLabel = async function (label) {
   mapCurrentSheet = String(label || '').trim();
+  // Remember which sheet is currently showing (E3, E4, etc.)
+  window.currentSheetLabel = mapCurrentSheet;
+
   if (!mapCurrentSheet) {
     mapRects = [];
     mapClear();
