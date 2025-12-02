@@ -308,6 +308,7 @@ document.addEventListener('click', (e) => {
   const next = document.getElementById(`step-${n}`);
   if (next) next.classList.add('active');
 });
+
 // === Back button capture: return to previous sheet if we came from click-and-fetch ===
 document.addEventListener('click', (ev) => {
   const btn = ev.target.closest('.back-btn');
@@ -323,6 +324,59 @@ document.addEventListener('click', (ev) => {
     window.jumpToLabel(sheet);              // go back to E3, E4, etc.
   }
 }, true); // capture phase
+
+
+// ---------- Piece status mode selector (toolbar) ----------
+window.currentStatusMode = 'none';  // "none", "yellow", "pink", "blue", "green"
+
+function setStatusMode(mode) {
+  const valid = ['none', 'yellow', 'pink', 'blue', 'green'];
+  if (!valid.includes(mode)) mode = 'none';
+
+  window.currentStatusMode = mode;
+
+  // Update toolbar button styles
+  const buttons = document.querySelectorAll('.status-btn[data-status]');
+  buttons.forEach(btn => {
+    const btnMode = btn.getAttribute('data-status') || 'none';
+    btn.classList.toggle('active', btnMode === mode);
+  });
+
+  // Optional: status text
+  const labelMap = {
+    none:   'Normal (click & fetch)',
+    yellow: 'Marking: Not located',
+    pink:   'Marking: Rigged',
+    blue:   'Marking: Erected',
+    green:  'Marking: 100% complete'
+  };
+  setStatus(`Mode: ${labelMap[mode] || 'Normal'}`);
+  console.log('[MODE] currentStatusMode =', mode);
+}
+
+// Init toolbar once DOM is ready
+(function initStatusToolbar(){
+  function wire() {
+    const buttons = document.querySelectorAll('.status-btn[data-status]');
+    if (!buttons.length) return; // nothing to do (safety)
+
+    buttons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const mode = btn.getAttribute('data-status') || 'none';
+        setStatusMode(mode);
+      });
+    });
+
+    // Default to Normal on load
+    setStatusMode('none');
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
 
 // ---------- Type selector ----------
 (() => {
@@ -353,6 +407,7 @@ document.addEventListener('click', (ev) => {
     initTypeSelector();
   }
 })();
+
 // ---------- Type-aware Access Code (no jobs.json) ----------
 (() => {
   async function tryIndex(base) {
@@ -417,7 +472,6 @@ document.addEventListener('click', (ev) => {
     return true;
   };
 })();
-
 
 // ---------- Step-1 harness (Access → load → Step 2) ----------
 (() => {
@@ -531,6 +585,9 @@ window.jumpToLabel = async function (raw) {
 let mapCurrentSheet = '';
 let mapRects = [];
 
+// In-memory status store: { "<job>|<sheet>|<label>": "yellow" | "pink" | "blue" | "green" }
+window.pieceStatus = window.pieceStatus || {};
+
 /**
  * Get the main sheet image element (viewer).
  */
@@ -562,10 +619,18 @@ function mapClear() {
   while (layer.firstChild) layer.removeChild(layer.firstChild);
 }
 
+function statusKeyFor(label) {
+  const jobId = window.currentJob?.id || 'job';
+  const sheet = mapCurrentSheet || window.currentSheetLabel || 'sheet';
+  const tag = String(label || '').trim().toUpperCase();
+  return `${jobId}|${sheet}|${tag}`;
+}
+
 /**
  * Draw all rects for the current sheet as .map-hit boxes.
  * Assumes rects are in *pixel* coordinates relative to the original image.
  */
+
 function renderMapNow() {
   const img = mapGetImageEl();
   const layer = mapGetLayer();
@@ -613,17 +678,70 @@ function renderMapNow() {
       hit.title = label;
     }
 
-    // Click → jump to that tag/sheet
-    hit.addEventListener('click', (ev) => {
-      // remember which sheet we came from (E3, E4, etc.) – safe even if unused
-      window._returnToSheet = window.currentSheetLabel;
+    // 🔁 RE-APPLY SAVED STATUS WHEN REDRAWING
+    if (label) {
+      const upper = String(label).trim().toUpperCase();
+      const core = upper.split('-').slice(-1)[0];          // "E3-129B" → "129B"
+      const key = statusKeyFor(core);                      // industrial/24-36N|E3|129B
+      const mode = (window.pieceStatus || {})[key];
 
+      const clsMap = {
+        yellow: 'status-yellow',
+        pink:   'status-pink',
+        blue:   'status-blue',
+        green:  'status-green'
+      };
+
+      if (mode && clsMap[mode]) {
+        hit.classList.add(clsMap[mode]);
+      }
+    }
+
+    // Click → either mark status (if in a marking mode) or jump (normal mode)
+    hit.addEventListener('click', (ev) => {
       ev.stopPropagation();
+
       const raw = ev.currentTarget.dataset.label || '';
       const upper = String(raw).trim().toUpperCase();
-      const core = upper.split('-').slice(-1)[0]; // "E3-133B" → "133B"
+      const core = upper.split('-').slice(-1)[0]; // "E3-129B" → "129B"
 
-      console.log('[MAP] Click hotspot →', raw, 'core', core);
+      const mode = window.currentStatusMode || 'none';
+      console.log('[MAP] Click hotspot →', raw, 'core', core, 'mode', mode);
+
+      // If we're in a marking mode, change color instead of jumping
+      if (mode !== 'none') {
+        const key = statusKeyFor(core);
+
+        const clsMap = {
+          yellow: 'status-yellow',
+          pink:   'status-pink',
+          blue:   'status-blue',
+          green:  'status-green'
+        };
+
+        ev.currentTarget.classList.remove(
+          'status-yellow',
+          'status-pink',
+          'status-blue',
+          'status-green'
+        );
+
+        if (clsMap[mode]) {
+          ev.currentTarget.classList.add(clsMap[mode]);
+
+          if (!window.pieceStatus) window.pieceStatus = {};
+          window.pieceStatus[key] = mode;
+          console.log('[STATUS] Set', key, '→', mode);
+        } else {
+          if (window.pieceStatus) delete window.pieceStatus[key];
+          console.log('[STATUS] Cleared', key);
+        }
+
+        return; // DO NOT jump in marking modes
+      }
+
+      // Normal mode: classic click & fetch
+      window._returnToSheet = window.currentSheetLabel;
 
       if (typeof window.jumpToLabel === 'function') {
         window.jumpToLabel(core || raw);
@@ -635,6 +753,8 @@ function renderMapNow() {
 
   console.log('[MAP] Rendered', mapRects.length, 'boxes for', mapCurrentSheet);
 }
+
+
 window.renderMapNow = renderMapNow;
 
 /**
@@ -706,4 +826,187 @@ window.setCurrentSheetLabel = async function (label) {
 // Keep overlay roughly in sync on resize
 window.addEventListener('resize', () => {
   renderMapNow();
+});
+
+// ---------- STATUS EXPORT (OPTION 2: JSON PER JOB) ----------
+function __getStatusForHit(hit) {
+  // 1. Try data-status first
+  let status =
+    hit.dataset.status ||
+    hit.getAttribute('data-status') ||
+    null;
+
+  // 2. If no data-status, look for any class like "status-yellow"
+  if (!status) {
+    const classes = Array.from(hit.classList || []);
+    const statusClass = classes.find((c) => c.startsWith('status-'));
+    if (statusClass) {
+      status = statusClass.replace(/^status-/, ''); // e.g. "yellow"
+    }
+  }
+
+  if (!status) return null;
+
+  // 3. Normalize to our four main names
+  const raw = status.toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
+
+  switch (raw) {
+    case 'yellow':
+    case 'notlocated':
+    case 'notlocatedpiece':
+      return 'not-located';
+
+    case 'pink':
+    case 'rigged':
+    case 'riggedpiece':
+      return 'rigged';
+
+    case 'blue':
+    case 'erected':
+    case 'erectedpiece':
+      return 'erected';
+
+    case 'green':
+    case 'complete':
+    case 'completed':
+    case 'done':
+    case '100':
+    case '100%':
+      return 'complete';
+
+    default:
+      // Fallback: keep whatever string we got
+      return status;
+  }
+}
+
+function gatherStatusForCurrentJob() {
+  try {
+    const jobId =
+      (window.currentJob && window.currentJob.id) ||
+      window.currentAccessCode ||
+      'unknown-job';
+
+    const statusMap = window.pieceStatus || {};
+    const sheets = {};
+    const prefix = jobId + '|';   // e.g. "industrial/24-36N|"
+
+    Object.entries(statusMap).forEach(([key, mode]) => {
+      if (!key.startsWith(prefix)) return;
+
+      // key format: "<job>|<sheet>|<tag>"
+      const rest = key.slice(prefix.length); // "<sheet>|<tag>"
+      const parts = rest.split('|');
+      const sheetId = parts[0] || 'unknown-sheet';
+      const tag = parts[1] || '';
+      if (!tag) return;
+
+      // normalize mode like __getStatusForHit does
+      const raw = String(mode || '').toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
+      let status;
+      switch (raw) {
+        case 'yellow':
+        case 'notlocated':
+        case 'notlocatedpiece':
+          status = 'not-located';
+          break;
+        case 'pink':
+        case 'rigged':
+        case 'riggedpiece':
+          status = 'rigged';
+          break;
+        case 'blue':
+        case 'erected':
+        case 'erectedpiece':
+          status = 'erected';
+          break;
+        case 'green':
+        case 'complete':
+        case 'completed':
+        case 'done':
+        case '100':
+        case '100%':
+          status = 'complete';
+          break;
+        default:
+          status = mode; // fallback
+      }
+
+      if (!sheets[sheetId]) sheets[sheetId] = {};
+      sheets[sheetId][tag] = status;
+
+      console.log(`[STATUS EXPORT] ${sheetId} :: ${tag} -> ${status}`);
+    });
+
+    const payload = {
+      job: jobId,
+      updatedAt: new Date().toISOString(),
+      sheets,
+    };
+
+    console.log('STATUS EXPORT OBJECT:', payload);
+    console.log(
+      'STATUS EXPORT JSON:\n',
+      JSON.stringify(payload, null, 2)
+    );
+
+    window.__statusExport = payload;
+    window.gatherStatusForCurrentJob = gatherStatusForCurrentJob;
+
+    return payload;
+  } catch (err) {
+    console.error('STATUS EXPORT FAILED:', err);
+    return null;
+  }
+}
+
+function downloadStatusJsonForCurrentJob() {
+  const payload = gatherStatusForCurrentJob();
+  if (!payload) {
+    alert('No status payload available.');
+    return;
+  }
+
+  const hasSheets =
+    payload.sheets &&
+    Object.keys(payload.sheets).length > 0;
+
+  if (!hasSheets) {
+    alert('No piece status found to save for this job.');
+    return;
+  }
+
+  const jobId = payload.job || 'unknown-job';
+
+  const safeJob =
+    String(jobId)
+      .replace(/[^a-z0-9\-]+/gi, '_')
+      .toLowerCase();
+
+  const filename = `${safeJob}-status.json`;
+
+  const json = JSON.stringify(payload, null, 2);
+  const blob = new Blob([json, '\n'], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+
+  setTimeout(() => {
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }, 0);
+
+  setStatus(`Status JSON downloaded as ${filename}`);
+}
+
+// Hook up the save button after DOM is ready
+window.addEventListener('DOMContentLoaded', () => {
+  const saveBtn = document.getElementById('status-save-btn');
+  if (saveBtn) {
+    saveBtn.addEventListener('click', downloadStatusJsonForCurrentJob);
+  }
 });

@@ -99,24 +99,66 @@
   <h2 id="step4-title" class="visually-hidden">Step 4: Image Viewer</h2>
 
   <section class="viewer">
-    <div id="image-wrapper">
-  <img id="sheet-image" alt="Blueprint" />
-  <div id="map-layer"></div>
-</div>
 
+    <!-- Status toolbar: Default / Yellow / Pink / Blue / Green -->
+    <div class="status-toolbar">
+      <span class="status-label">Piece status:</span>
+
+      <button type="button"
+              class="status-btn status-none"
+              data-status="none">
+        Normal
+      </button>
+
+      <button type="button"
+              class="status-btn status-missing"
+              data-status="yellow">
+        Not located
+      </button>
+
+      <button type="button"
+              class="status-btn status-rigged"
+              data-status="pink">
+        Rigged
+      </button>
+
+      <button type="button"
+              class="status-btn status-erected"
+              data-status="blue">
+        Erected
+      </button>
+
+      <button type="button"
+              class="status-btn status-complete"
+              data-status="green">
+        100%
+      </button>
+
+      <button id="status-save-btn" type="button">
+              Save status JSON
+      </button>
+
+    </div>
+
+    <div id="image-wrapper">
+      <img id="sheet-image" alt="Blueprint" />
+      <div id="map-layer"></div>
+    </div>
 
     <div class="control buttons">
       <button id="prev-btn" title="Previous (←)">Prev</button>
       <button id="next-btn" title="Next (→)">Next</button>
     </div>
+
   </section>
 
   <div class="step-nav">
     <button type="button" class="back-btn" data-go="3">Back</button>
   </div>
 </section>
-    
+
 </main>
+
 
     <footer class="app-footer">
       <span id="status-text">Ready.</span>

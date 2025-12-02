@@ -224,6 +224,28 @@ body {
 }
 
 
+/* Status-color overlays on hotspots */
+.map-hit.status-yellow {
+  background: rgba(250, 204, 21, 0.40);   /* yellow */
+  border: 2px solid #eab308;
+}
+
+.map-hit.status-pink {
+  background: rgba(244, 114, 182, 0.40);  /* pink */
+  border: 2px solid #db2777;
+}
+
+.map-hit.status-blue {
+  background: rgba(96, 165, 250, 0.40);   /* blue */
+  border: 2px solid #2563eb;
+}
+
+.map-hit.status-green {
+  background: rgba(74, 222, 128, 0.40);   /* green */
+  border: 2px solid #16a34a;
+}
+
+
 
 /* Wrapper for blueprint image + overlay */
 #image-wrapper {
@@ -243,4 +265,83 @@ body {
   height: auto;
   object-fit: contain;
   display: block;
+}
+
+
+/* ----- Piece status toolbar (Step 4) ----- */
+
+.status-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 999px;
+  background: rgba(15, 23, 42, 0.9);  /* dark pill to match theme */
+  border: 1px solid #1f2937;
+}
+
+.status-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+  margin-right: 0.25rem;
+  color: var(--muted);
+}
+
+.status-btn {
+  border-radius: 999px;
+  padding: 0.25rem 0.7rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  border: 1px solid transparent;
+  cursor: pointer;
+  white-space: nowrap;
+  min-height: 28px;
+}
+
+/* Gray — Normal */
+.status-btn.status-none {
+  background: #374151;
+  border-color: #4b5563;
+  color: #e5e7eb;
+}
+
+/* Yellow — Not located */
+.status-btn.status-missing {
+  background: #facc15;
+  border-color: #eab308;
+  color: #1f2937;
+}
+
+/* Pink — Rigged */
+.status-btn.status-rigged {
+  background: #f472b6;
+  border-color: #db2777;
+  color: #111827;
+}
+
+/* Blue — Erected */
+.status-btn.status-erected {
+  background: #60a5fa;
+  border-color: #2563eb;
+  color: #0b1120;
+}
+
+/* Green — 100% */
+.status-btn.status-complete {
+  background: #4ade80;
+  border-color: #16a34a;
+  color: #052e16;
+}
+
+/* Hover tweak (slightly brighter) */
+.status-btn:hover {
+  filter: brightness(1.05);
+}
+/* Active mode highlight */
+.status-btn.active {
+  box-shadow: 0 0 0 2px var(--accent);
+  outline: none;
+  transform: translateY(-1px);
 }
