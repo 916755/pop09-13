@@ -345,3 +345,50 @@ body {
   outline: none;
   transform: translateY(-1px);
 }
+
+#demo-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  background: #b30000;
+  color: #fff;
+  text-align: center;
+  font-weight: bold;
+  padding: 6px 0;
+  z-index: 9999;
+  letter-spacing: 1px;
+}
+#demo-instructions {
+  position: fixed;
+  top: 46px; /* sits below the banner */
+  left: 10px;
+  right: 10px;
+  max-width: 720px;
+  margin: 0 auto;
+  background: rgba(0,0,0,0.75);
+  color: #fff;
+  padding: 10px 12px;
+  border-radius: 10px;
+  z-index: 9999;
+  font-size: 14px;
+}
+
+#demo-instructions ol {
+  margin: 6px 0 0 18px;
+}
+#demo-hide {
+  position: absolute;
+  top: 6px;
+  right: 8px;
+  background: transparent;
+  border: none;
+  color: #fff;
+  font-size: 18px;
+  font-weight: bold;
+  cursor: pointer;
+}
+
+#demo-hide:hover {
+  color: #ffb3b3;
+}

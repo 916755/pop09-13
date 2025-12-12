@@ -1010,3 +1010,9 @@ window.addEventListener('DOMContentLoaded', () => {
     saveBtn.addEventListener('click', downloadStatusJsonForCurrentJob);
   }
 });
+
+// ---- DEMO: hide instructions ----
+document.getElementById('demo-hide')?.addEventListener('click', () => {
+  const box = document.getElementById('demo-instructions');
+  if (box) box.style.display = 'none';
+});
