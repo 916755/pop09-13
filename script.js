@@ -1016,3 +1016,29 @@ document.getElementById('demo-hide')?.addEventListener('click', () => {
   const box = document.getElementById('demo-instructions');
   if (box) box.style.display = 'none';
 });
+// ===== In-app Zoom Controls (scales image + map together) =====
+(function initPopZoom(){
+  let z = 1;
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+  function applyZoom(){
+    z = clamp(z, 0.6, 3.0); // 60% to 300%
+    document.documentElement.style.setProperty('--popZoom', String(z));
+    const resetBtn = document.getElementById('zoom-reset');
+    if (resetBtn) resetBtn.textContent = Math.round(z * 100) + '%';
+
+    // overlay boxes are inside the scaled stage, so they scale automatically.
+    // but after zoom, we re-render once to be safe:
+    if (typeof window.renderMapNow === 'function') window.renderMapNow();
+  }
+
+  window.setPopZoom = (val) => { z = Number(val) || 1; applyZoom(); };
+
+  window.addEventListener('DOMContentLoaded', () => {
+    document.getElementById('zoom-in')?.addEventListener('click', () => { z *= 1.15; applyZoom(); });
+    document.getElementById('zoom-out')?.addEventListener('click', () => { z /= 1.15; applyZoom(); });
+    document.getElementById('zoom-reset')?.addEventListener('click', () => { z = 1; applyZoom(); });
+    applyZoom();
+  });
+})();
