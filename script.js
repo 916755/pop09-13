@@ -28,9 +28,11 @@ function resolveImageUrl(item, kind = 'image') {
   const jobRoot = job.id ? `jobs/${job.id}/` : 'jobs/';
   const imagesDir = (job.imagesDir || `${jobRoot}images/`).replace(/^\.\/+/, '');
   const thumbsDir = (job.thumbsDir || `${jobRoot}thumbs/`).replace(/^\.\/+/, '');
+
+  // ✅ FIX: include item.fetch for image
   let raw = (kind === 'thumb'
     ? (item.thumb || item.thumbnail || item.thumbPath || '')
-    : (item.image || item.path || item.file || '')
+    : (item.fetch || item.image || item.path || item.file || '')
   ) || '';
 
   if (/^(https?:)?\/\//i.test(raw) || raw.startsWith('/')) return raw;
@@ -68,7 +70,8 @@ function naturalByLabel(a, b) {
 function group(items) {
   const out = { All: [] };
   for (const it of items) {
-    const rawPath = String(it.path || it.image || it.file || '').replace(/^\.\//, '');
+    // ✅ FIX: include fetch in rawPath so categorization works even when path is missing
+    const rawPath = String(it.path || it.image || it.fetch || it.file || '').replace(/^\.\//, '');
     const segs = rawPath.split('/');
     let cat = '';
 
@@ -86,12 +89,22 @@ function group(items) {
       cat = m ? m[1] : 'Misc';
     }
 
+    // ✅ FIX: preserve map/fetch/type so member mapping can work after jump
     const norm = {
       name: it.name || it.label || segs.at(-1) || 'item',
       label: it.label || it.name || rawPath,
-      path: it.image || it.path || it.file || rawPath,
-      thumb: it.thumb || it.thumbnail || it.thumbPath
+
+      // keep a "path" for select dropdowns; prefer explicit path/image/file, else fetch
+      path: it.image || it.path || it.file || it.fetch || rawPath,
+
+      thumb: it.thumb || it.thumbnail || it.thumbPath,
+
+      // preserve these fields
+      fetch: it.fetch || '',
+      map: it.map || '',
+      type: it.type || ''
     };
+
     (out[cat] ||= []).push(norm);
     out.All.push(norm);
   }
@@ -204,7 +217,10 @@ async function loadIndexForCurrentJob() {
         cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
       }
       setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);
-      setCurrentSheetLabel(label);
+
+      // ✅ FIX: pass item too (so we can load item.map for member details)
+      setCurrentSheetLabel(label, it);
+
       if (els.sheetSelect) els.sheetSelect.value = it.path;
     };
 
@@ -309,21 +325,138 @@ document.addEventListener('click', (e) => {
   if (next) next.classList.add('active');
 });
 
-// === Back button capture: return to previous sheet if we came from click-and-fetch ===
+// === Back button: pop view history (multi-level) ===
 document.addEventListener('click', (ev) => {
   const btn = ev.target.closest('.back-btn');
   if (!btn) return;
 
-  if (window._returnToSheet && typeof window.jumpToLabel === 'function') {
-    const sheet = window._returnToSheet;
-    window._returnToSheet = null;           // use it once then clear
-    console.log('[BACK] Returning to sheet:', sheet);
+  // stop the normal step-nav ([data-go]) from firing
+  ev.preventDefault();
+  ev.stopPropagation();
 
-    ev.preventDefault();
-    ev.stopPropagation();                   // stop normal step-nav for this click
-    window.jumpToLabel(sheet);              // go back to E3, E4, etc.
+  const st = window.drillStack?.pop();
+  if (!st) {
+    console.log('[BACK] No history; staying put.');
+    return;
   }
-}, true); // capture phase
+
+  console.log('[BACK] Restoring:', st.sheetLabel || st.imgSrc);
+  restoreViewState(st);
+}, true);
+
+// ===== Supervisor Lock (client-side) =====
+// Blocks ALL piece status changes unless unlocked by supervisor PIN.
+// PIN is stored on THIS device (localStorage). Change/reset by supervisor only.
+window.popSupervisor = window.popSupervisor || (() => {
+  const KEY_PIN = 'pop.supervisor.pin';        // stored PIN (plain). Upgrade later if desired.
+  const KEY_UNLOCKED = 'pop.supervisor.on';    // "1" when unlocked this session
+
+  function isUnlocked() {
+    return localStorage.getItem(KEY_UNLOCKED) === '1';
+  }
+
+  function lock(msg = 'Supervisor lock enabled.') {
+    localStorage.setItem(KEY_UNLOCKED, '0');
+    try { window.setStatus?.(msg); } catch {}
+    // force mode back to normal
+    if (window.currentStatusMode && window.currentStatusMode !== 'none') {
+      window.currentStatusMode = 'none';
+      document.querySelectorAll('.status-btn[data-status]').forEach(b => b.classList.remove('active'));
+      document.querySelector('.status-btn[data-status="none"]')?.classList.add('active');
+    }
+    updateToolbarDisabledState();
+    console.log('[SUP] LOCK');
+  }
+
+  function unlock() {
+    const stored = localStorage.getItem(KEY_PIN);
+
+    // First-time setup (on THIS device)
+    if (!stored) {
+      const p1 = prompt('Supervisor setup: create a new PIN for THIS device:');
+      if (!p1) return false;
+      const p2 = prompt('Confirm PIN:');
+      if (!p2 || p2 !== p1) {
+        alert('PINs did not match. Supervisor lock not changed.');
+        return false;
+      }
+      localStorage.setItem(KEY_PIN, p1);
+      localStorage.setItem(KEY_UNLOCKED, '1');
+      updateToolbarDisabledState();
+      window.setStatus?.('Supervisor unlocked (PIN set on this device).');
+      console.log('[SUP] UNLOCK (first-time set)');
+      return true;
+    }
+
+    // Normal unlock
+    const pin = prompt('Supervisor PIN required:');
+    if (!pin) return false;
+    if (pin !== stored) {
+      alert('Wrong PIN.');
+      return false;
+    }
+
+    localStorage.setItem(KEY_UNLOCKED, '1');
+    updateToolbarDisabledState();
+    window.setStatus?.('Supervisor unlocked.');
+    console.log('[SUP] UNLOCK');
+    return true;
+  }
+
+  function resetPin() {
+    if (!isUnlocked()) {
+      alert('Unlock as supervisor first.');
+      return false;
+    }
+    const p1 = prompt('Enter NEW supervisor PIN:');
+    if (!p1) return false;
+    const p2 = prompt('Confirm NEW PIN:');
+    if (!p2 || p2 !== p1) {
+      alert('PINs did not match.');
+      return false;
+    }
+    localStorage.setItem(KEY_PIN, p1);
+    window.setStatus?.('Supervisor PIN updated on this device.');
+    console.log('[SUP] PIN RESET');
+    return true;
+  }
+
+  // Disable marking buttons when locked
+  function updateToolbarDisabledState() {
+    const locked = !isUnlocked();
+    document.querySelectorAll('.status-btn[data-status]').forEach(btn => {
+      const mode = btn.getAttribute('data-status') || 'none';
+      // Always allow "none", block the marking colors
+      btn.toggleAttribute('disabled', locked && mode !== 'none');
+      btn.classList.toggle('locked', locked && mode !== 'none');
+      btn.title = (locked && mode !== 'none')
+        ? 'Supervisor locked'
+        : (btn.title || '');
+    });
+  }
+
+  // Convenience: Ctrl+Shift+L => unlock/lock toggle
+  document.addEventListener('keydown', (e) => {
+    if (e.ctrlKey && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+      e.preventDefault();
+      if (isUnlocked()) lock('Supervisor locked.');
+      else unlock();
+    }
+    // Ctrl+Shift+R => reset PIN (only when unlocked)
+    if (e.ctrlKey && e.shiftKey && (e.key === 'R' || e.key === 'r')) {
+      e.preventDefault();
+      resetPin();
+    }
+  });
+
+  // Initialize default: locked unless previously unlocked
+  if (localStorage.getItem(KEY_UNLOCKED) == null) localStorage.setItem(KEY_UNLOCKED, '0');
+  // expose helper so other code can refresh button state
+  window.__supUpdateToolbar = updateToolbarDisabledState;
+
+  return { isUnlocked, lock, unlock, resetPin, updateToolbarDisabledState };
+})();
+
 
 
 // ---------- Piece status mode selector (toolbar) ----------
@@ -332,6 +465,12 @@ window.currentStatusMode = 'none';  // "none", "yellow", "pink", "blue", "green"
 function setStatusMode(mode) {
   const valid = ['none', 'yellow', 'pink', 'blue', 'green'];
   if (!valid.includes(mode)) mode = 'none';
+
+    // 🔒 Supervisor lock: block marking modes unless unlocked
+  if (mode !== 'none' && !window.popSupervisor?.isUnlocked?.()) {
+    setStatus('Supervisor lock: press Ctrl+Shift+L to unlock.');
+    mode = 'none';
+  }
 
   window.currentStatusMode = mode;
 
@@ -369,6 +508,8 @@ function setStatusMode(mode) {
 
     // Default to Normal on load
     setStatusMode('none');
+        window.popSupervisor?.updateToolbarDisabledState?.();
+
   }
 
   if (document.readyState === 'loading') {
@@ -376,6 +517,8 @@ function setStatusMode(mode) {
   } else {
     wire();
   }
+    window.popSupervisor?.updateToolbarDisabledState?.();
+
 })();
 
 // ---------- Type selector ----------
@@ -387,20 +530,27 @@ function setStatusMode(mode) {
     industrial: 'Industrial',
     special: 'Special'
   };
+
   function initTypeSelector() {
     const sel = document.getElementById('type-select');
     if (!sel) return;
+
     window.state = window.state || {};
+    const state = window.state; // ✅ FIX: real variable
+
     const saved = localStorage.getItem('pop.type');
     if (saved && TYPE_LABELS[saved]) sel.value = saved;
+
     state.type = sel.value;
     setStatus(`Type set: ${TYPE_LABELS[state.type] || '(none)'}`);
+
     sel.addEventListener('change', () => {
       state.type = sel.value;
       localStorage.setItem('pop.type', state.type);
       setStatus(`Type set: ${TYPE_LABELS[state.type] || '(none)'}`);
     });
   }
+
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', initTypeSelector);
   } else {
@@ -580,7 +730,7 @@ window.jumpToLabel = async function (raw) {
   });
 })();
 
-// ====== MAPPING OVERLAY (single engine for erection sheets) ======
+// ====== MAPPING OVERLAY (single engine for erection sheets + member details) ======
 
 let mapCurrentSheet = '';
 let mapRects = [];
@@ -599,16 +749,33 @@ function mapGetImageEl() {
  * Get or create the overlay layer that sits on top of the image.
  */
 function mapGetLayer() {
+  const wrapper = document.getElementById('image-wrapper') || document.getElementById('viewer-wrapper');
+  if (!wrapper) return null;
+
+  // wrapper must be positioning context
+  if (getComputedStyle(wrapper).position === 'static') {
+    wrapper.style.position = 'relative';
+  }
+
   let layer = document.getElementById('map-layer');
   if (!layer) {
-    const wrapper = document.getElementById('image-wrapper') || document.getElementById('viewer-wrapper');
-    if (!wrapper) return null;
     layer = document.createElement('div');
     layer.id = 'map-layer';
     wrapper.appendChild(layer);
   }
+
+  // FORCE correct overlay behavior every time
+  layer.style.position = 'absolute';
+  layer.style.left = '0';
+  layer.style.top = '0';
+  layer.style.right = '0';
+  layer.style.bottom = '0';
+  layer.style.zIndex = '9999';
+  layer.style.pointerEvents = 'none'; // layer ignores clicks; boxes handle clicks
+
   return layer;
 }
+
 
 /**
  * Remove all hotspot boxes.
@@ -626,10 +793,135 @@ function statusKeyFor(label) {
   return `${jobId}|${sheet}|${tag}`;
 }
 
+// ===== VIEW HISTORY (Back should walk Erection -> Member -> Clip -> ...) =====
+// Back should ONLY undo click-and-fetch drilldowns
+window.drillStack = window.drillStack || [];
+
+function pushDrillState() {
+  const st = captureViewState();
+  if (!st.imgSrc) return; // must have an image showing
+  const top = window.drillStack[window.drillStack.length - 1];
+  if (top && top.imgSrc === st.imgSrc && top.sheetLabel === st.sheetLabel) return;
+  window.drillStack.push(st);
+  if (window.drillStack.length > 40) window.drillStack.shift();
+}
+
+
+function captureViewState() {
+  const img = mapGetImageEl();
+  return {
+    stepId: document.querySelector('.step.active')?.id || 'step-4',
+    imgSrc: img?.getAttribute('src') || '',
+    sheetLabel: window.currentSheetLabel || mapCurrentSheet || '',
+    mapCurrentSheet: mapCurrentSheet || '',
+    mapRects: Array.isArray(mapRects) ? mapRects.slice() : [],
+    // keep UI selection context so we don't fall back to Step 1
+    category: els.categorySelect?.value || '',
+    sheetPath: els.sheetSelect?.value || '',
+    pos: window._pos || 0
+  };
+}
+
+function restoreViewState(st) {
+  setTimeout(renderMapNow, 0);
+  if (!st) return;
+
+  // Stay in viewer step (never kick to Step 1)
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-4')?.classList.add('active');
+
+  // Restore image FIRST (no dropdown rebuild events)
+  const img = mapGetImageEl();
+  if (img && st.imgSrc) {
+    img.src = st.imgSrc;
+  }
+
+  // Restore mapping state in-memory
+  window.currentSheetLabel = st.sheetLabel || '';
+  mapCurrentSheet = st.mapCurrentSheet || st.sheetLabel || '';
+  mapRects = Array.isArray(st.mapRects) ? st.mapRects : [];
+
+  // Restore UI values WITHOUT dispatching change (dispatch is what breaks Back)
+  if (els.categorySelect && typeof st.category === 'string') {
+    els.categorySelect.value = st.category;
+  }
+  if (els.sheetSelect && typeof st.sheetPath === 'string') {
+    els.sheetSelect.value = st.sheetPath;
+  }
+  if (typeof st.pos === 'number') {
+    window._pos = st.pos;
+  }
+
+  // Paint boxes after image loads (or immediately if already loaded)
+  if (img && (!img.naturalWidth || !img.naturalHeight)) {
+    img.addEventListener('load', () => {
+      renderMapNow();
+    }, { once: true });
+  } else {
+    renderMapNow();
+  }
+
+  // IMPORTANT: DO NOT call _show() here.
+  // _show() triggers setCurrentSheetLabel() which triggers loadMapForSheet()
+  // and that’s why you’re getting spam 404s and bouncing.
+}
+ 
+
 /**
  * Draw all rects for the current sheet as .map-hit boxes.
  * Assumes rects are in *pixel* coordinates relative to the original image.
  */
+function openFromHotspotRect(rect) {
+  const job = window.currentJob;
+  if (!job?.id) return;
+
+  const img = mapGetImageEl();
+  if (!img) return;
+
+
+// ✅ history: remember where we were before drilling down
+ pushDrillState();     // <-- only push in the whole app
+
+  const label = String(rect.label || rect.tag || '').trim();
+  const fetchPath = rect.fetch ? String(rect.fetch).replace(/^\.\/+/, '') : '';
+  const mapPath   = rect.map   ? String(rect.map).replace(/^\.\/+/, '')   : '';
+
+  const jobRoot = `jobs/${job.id}/`;
+  const imgUrl = fetchPath ? (fetchPath.startsWith('jobs/') ? fetchPath : jobRoot + fetchPath) : '';
+const mapUrl = mapPath ? (mapPath.startsWith('jobs/') ? mapPath : jobRoot + mapPath) : '';
+
+
+  // show member image
+  if (imgUrl) {
+    img.src = imgUrl;
+    img.onerror = () => console.warn('IMAGE LOAD FAILED:', img.src);
+  } else {
+    console.warn('[HOTSPOT] No rect.fetch for', label, rect);
+  }
+
+  // load member map (second-level)
+  if (mapUrl) {
+    fetch(mapUrl, { cache: 'no-store' })
+      .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
+      .then(data => {
+        mapRects = Array.isArray(data) ? data : (data.rects || []);
+        mapCurrentSheet = label || window.currentSheetLabel || '';
+        window.currentSheetLabel = mapCurrentSheet;
+        setStatus(`Map loaded for ${mapCurrentSheet} (${mapRects.length} hotspots) via ${mapPath}`);
+        renderMapNow();
+      })
+      .catch(err => {
+        console.warn('[HOTSPOT] Member map load failed:', mapUrl, err);
+        mapRects = [];
+        mapClear();
+      });
+  } else {
+    mapRects = [];
+    mapClear();
+  }
+
+  setStatus(`Showing: ${label || '(member)'}`);
+}
 
 function renderMapNow() {
   const img = mapGetImageEl();
@@ -667,6 +959,8 @@ function renderMapNow() {
     const hit = document.createElement('div');
     hit.className = 'map-hit';
     hit.style.position = 'absolute';
+    hit.style.pointerEvents = 'auto';
+    hit.style.zIndex = '10000';
     hit.style.left = leftPct + '%';
     hit.style.top = topPct + '%';
     hit.style.width = widthPct + '%';
@@ -682,7 +976,7 @@ function renderMapNow() {
     if (label) {
       const upper = String(label).trim().toUpperCase();
       const core = upper.split('-').slice(-1)[0];          // "E3-129B" → "129B"
-      const key = statusKeyFor(core);                      // industrial/24-36N|E3|129B
+      const key = statusKeyFor(core);
       const mode = (window.pieceStatus || {})[key];
 
       const clsMap = {
@@ -702,14 +996,29 @@ function renderMapNow() {
       ev.stopPropagation();
 
       const raw = ev.currentTarget.dataset.label || '';
-      const upper = String(raw).trim().toUpperCase();
-      const core = upper.split('-').slice(-1)[0]; // "E3-129B" → "129B"
 
-      const mode = window.currentStatusMode || 'none';
-      console.log('[MAP] Click hotspot →', raw, 'core', core, 'mode', mode);
+// normalize label:
+// - remove file extension (.png, .jpg, etc)
+// - trim
+// - uppercase ONLY for lookup
+const cleaned = String(raw)
+  .trim()
+  .replace(/\.[a-z0-9]+$/i, '');   // removes ".png", ".jpg", etc
 
-      // If we're in a marking mode, change color instead of jumping
+const core = cleaned
+  .split('-')
+  .slice(-1)[0]
+  .toUpperCase();                  // "a242" → "A242"
+  const mode = window.currentStatusMode || 'none';
+
+
+           // If we're in a marking mode, require supervisor unlock
       if (mode !== 'none') {
+        if (!window.popSupervisor?.isUnlocked?.()) {
+          setStatus('Supervisor lock: press Ctrl+Shift+L to unlock.');
+          return;
+        }
+
         const key = statusKeyFor(core);
 
         const clsMap = {
@@ -740,12 +1049,18 @@ function renderMapNow() {
         return; // DO NOT jump in marking modes
       }
 
-      // Normal mode: classic click & fetch
-      window._returnToSheet = window.currentSheetLabel;
+     // Normal mode: click & fetch
+if (rect && (rect.fetch || rect.map)) {
+  openFromHotspotRect(rect);
+  return;
+}
 
-      if (typeof window.jumpToLabel === 'function') {
-        window.jumpToLabel(core || raw);
-      }
+// fallback: old jump behavior (index-based)
+window._returnToSheet = window.currentSheetLabel;
+if (typeof window.jumpToLabel === 'function') {
+  window.jumpToLabel(core || raw);
+}
+
     });
 
     layer.appendChild(hit);
@@ -753,8 +1068,6 @@ function renderMapNow() {
 
   console.log('[MAP] Rendered', mapRects.length, 'boxes for', mapCurrentSheet);
 }
-
-
 window.renderMapNow = renderMapNow;
 
 /**
@@ -807,14 +1120,54 @@ async function loadMapForSheet(label) {
 }
 
 /**
- * Called whenever the viewer changes sheets.
- * Your _show() function already calls setCurrentSheetLabel(label).
+ * ✅ FIX: Called whenever the viewer changes images.
+ * If item.map exists (member detail), load that map file.
+ * Else, load the standard erection sheet map: maps/<label>.json
  */
-window.setCurrentSheetLabel = async function (label) {
+window.setCurrentSheetLabel = async function (label, item) {
   mapCurrentSheet = String(label || '').trim();
-  // Remember which sheet is currently showing (E3, E4, etc.)
   window.currentSheetLabel = mapCurrentSheet;
 
+  const job = window.currentJob;
+  if (!job || !job.id) {
+    mapRects = [];
+    mapClear();
+    return;
+  }
+
+  // If a specific map path exists on the item, use it.
+  const mapPath = item && typeof item === 'object' ? item.map : '';
+  if (mapPath) {
+    // mapPath is relative to the job folder, e.g. "maps/members/125B.json"
+    const clean = String(mapPath).replace(/^\.\/+/, '').replace(/\\/g, '/');
+    const url = clean.startsWith('jobs/')
+      ? clean
+      : `jobs/${job.id}/${clean}`;
+
+    try {
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) {
+        console.warn('[MAP] Member map missing:', url, res.status);
+        mapRects = [];
+        mapClear();
+        return;
+      }
+      const data = await res.json();
+      const rects = Array.isArray(data) ? data : (data.rects || []);
+      mapRects = rects || [];
+      setStatus(`Map loaded for ${mapCurrentSheet} (${mapRects.length} hotspots) via ${mapPath}`);
+      console.log('[MAP] Loaded member map', mapCurrentSheet, 'from', url);
+      renderMapNow();
+      return;
+    } catch (err) {
+      console.warn('[MAP] Member map load error:', err);
+      mapRects = [];
+      mapClear();
+      return;
+    }
+  }
+
+  // Otherwise: standard sheet map
   if (!mapCurrentSheet) {
     mapRects = [];
     mapClear();
@@ -828,194 +1181,12 @@ window.addEventListener('resize', () => {
   renderMapNow();
 });
 
-// ---------- STATUS EXPORT (OPTION 2: JSON PER JOB) ----------
-function __getStatusForHit(hit) {
-  // 1. Try data-status first
-  let status =
-    hit.dataset.status ||
-    hit.getAttribute('data-status') ||
-    null;
-
-  // 2. If no data-status, look for any class like "status-yellow"
-  if (!status) {
-    const classes = Array.from(hit.classList || []);
-    const statusClass = classes.find((c) => c.startsWith('status-'));
-    if (statusClass) {
-      status = statusClass.replace(/^status-/, ''); // e.g. "yellow"
-    }
-  }
-
-  if (!status) return null;
-
-  // 3. Normalize to our four main names
-  const raw = status.toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
-
-  switch (raw) {
-    case 'yellow':
-    case 'notlocated':
-    case 'notlocatedpiece':
-      return 'not-located';
-
-    case 'pink':
-    case 'rigged':
-    case 'riggedpiece':
-      return 'rigged';
-
-    case 'blue':
-    case 'erected':
-    case 'erectedpiece':
-      return 'erected';
-
-    case 'green':
-    case 'complete':
-    case 'completed':
-    case 'done':
-    case '100':
-    case '100%':
-      return 'complete';
-
-    default:
-      // Fallback: keep whatever string we got
-      return status;
-  }
-}
-
-function gatherStatusForCurrentJob() {
-  try {
-    const jobId =
-      (window.currentJob && window.currentJob.id) ||
-      window.currentAccessCode ||
-      'unknown-job';
-
-    const statusMap = window.pieceStatus || {};
-    const sheets = {};
-    const prefix = jobId + '|';   // e.g. "industrial/24-36N|"
-
-    Object.entries(statusMap).forEach(([key, mode]) => {
-      if (!key.startsWith(prefix)) return;
-
-      // key format: "<job>|<sheet>|<tag>"
-      const rest = key.slice(prefix.length); // "<sheet>|<tag>"
-      const parts = rest.split('|');
-      const sheetId = parts[0] || 'unknown-sheet';
-      const tag = parts[1] || '';
-      if (!tag) return;
-
-      // normalize mode like __getStatusForHit does
-      const raw = String(mode || '').toLowerCase().replace(/\s+/g, '').replace(/_/g, '');
-      let status;
-      switch (raw) {
-        case 'yellow':
-        case 'notlocated':
-        case 'notlocatedpiece':
-          status = 'not-located';
-          break;
-        case 'pink':
-        case 'rigged':
-        case 'riggedpiece':
-          status = 'rigged';
-          break;
-        case 'blue':
-        case 'erected':
-        case 'erectedpiece':
-          status = 'erected';
-          break;
-        case 'green':
-        case 'complete':
-        case 'completed':
-        case 'done':
-        case '100':
-        case '100%':
-          status = 'complete';
-          break;
-        default:
-          status = mode; // fallback
-      }
-
-      if (!sheets[sheetId]) sheets[sheetId] = {};
-      sheets[sheetId][tag] = status;
-
-      console.log(`[STATUS EXPORT] ${sheetId} :: ${tag} -> ${status}`);
-    });
-
-    const payload = {
-      job: jobId,
-      updatedAt: new Date().toISOString(),
-      sheets,
-    };
-
-    console.log('STATUS EXPORT OBJECT:', payload);
-    console.log(
-      'STATUS EXPORT JSON:\n',
-      JSON.stringify(payload, null, 2)
-    );
-
-    window.__statusExport = payload;
-    window.gatherStatusForCurrentJob = gatherStatusForCurrentJob;
-
-    return payload;
-  } catch (err) {
-    console.error('STATUS EXPORT FAILED:', err);
-    return null;
-  }
-}
-
-function downloadStatusJsonForCurrentJob() {
-  const payload = gatherStatusForCurrentJob();
-  if (!payload) {
-    alert('No status payload available.');
-    return;
-  }
-
-  const hasSheets =
-    payload.sheets &&
-    Object.keys(payload.sheets).length > 0;
-
-  if (!hasSheets) {
-    alert('No piece status found to save for this job.');
-    return;
-  }
-
-  const jobId = payload.job || 'unknown-job';
-
-  const safeJob =
-    String(jobId)
-      .replace(/[^a-z0-9\-]+/gi, '_')
-      .toLowerCase();
-
-  const filename = `${safeJob}-status.json`;
-
-  const json = JSON.stringify(payload, null, 2);
-  const blob = new Blob([json, '\n'], { type: 'application/json' });
-  const url = URL.createObjectURL(blob);
-
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = filename;
-  document.body.appendChild(a);
-  a.click();
-
-  setTimeout(() => {
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  }, 0);
-
-  setStatus(`Status JSON downloaded as ${filename}`);
-}
-
-// Hook up the save button after DOM is ready
-window.addEventListener('DOMContentLoaded', () => {
-  const saveBtn = document.getElementById('status-save-btn');
-  if (saveBtn) {
-    saveBtn.addEventListener('click', downloadStatusJsonForCurrentJob);
-  }
-});
-
 // ---- DEMO: hide instructions ----
 document.getElementById('demo-hide')?.addEventListener('click', () => {
   const box = document.getElementById('demo-instructions');
   if (box) box.style.display = 'none';
 });
+
 // ===== In-app Zoom Controls (scales image + map together) =====
 (function initPopZoom(){
   let z = 1;
@@ -1028,8 +1199,6 @@ document.getElementById('demo-hide')?.addEventListener('click', () => {
     const resetBtn = document.getElementById('zoom-reset');
     if (resetBtn) resetBtn.textContent = Math.round(z * 100) + '%';
 
-    // overlay boxes are inside the scaled stage, so they scale automatically.
-    // but after zoom, we re-render once to be safe:
     if (typeof window.renderMapNow === 'function') window.renderMapNow();
   }
 
@@ -1041,4 +1210,72 @@ document.getElementById('demo-hide')?.addEventListener('click', () => {
     document.getElementById('zoom-reset')?.addEventListener('click', () => { z = 1; applyZoom(); });
     applyZoom();
   });
+})();
+// ===== C) Touch long-press to unlock supervisor (no buttons, no step changes) =====
+// Long-press ~900ms on the image area (NOT on hotspots) to toggle lock/unlock.
+(function enableSupervisorLongPress(){
+  const HOLD_MS = 900;
+
+  function getPressTarget() {
+    // Prefer wrapper so it works even if the image element changes
+    return document.getElementById('image-wrapper')
+      || document.getElementById('viewer-wrapper')
+      || document.getElementById('sheet-image')
+      || document.getElementById('image');
+  }
+
+  function wire() {
+    const el = getPressTarget();
+    if (!el) return;
+
+    let t = null;
+    let startedOnHotspot = false;
+
+    const start = (ev) => {
+      // If the press starts on a hotspot, do NOTHING (don’t interfere with click & fetch)
+      startedOnHotspot = !!ev.target.closest?.('.map-hit');
+      if (startedOnHotspot) return;
+
+      // Only left mouse button if desktop
+      if (ev.pointerType === 'mouse' && ev.button !== 0) return;
+
+      // Start timer
+      t = setTimeout(() => {
+        t = null;
+
+        if (!window.popSupervisor) {
+          console.warn('[SUP] popSupervisor not found');
+          return;
+        }
+
+        // Toggle lock/unlock using the same PIN prompts you already have
+        if (window.popSupervisor.isUnlocked()) {
+          window.popSupervisor.lock('Supervisor locked.');
+        } else {
+          window.popSupervisor.unlock(); // first time: creates PIN; later: asks PIN
+        }
+
+        window.popSupervisor.updateToolbarDisabledState?.();
+      }, HOLD_MS);
+    };
+
+    const stop = () => {
+      if (t) { clearTimeout(t); t = null; }
+      startedOnHotspot = false;
+    };
+
+    // Use pointer events so it works on touch + mouse
+    el.addEventListener('pointerdown', start, { passive: true });
+    el.addEventListener('pointerup', stop, { passive: true });
+    el.addEventListener('pointercancel', stop, { passive: true });
+    el.addEventListener('pointerleave', stop, { passive: true });
+
+    console.log('[SUP] Long-press unlock wired on', el.id || el.className || el.tagName);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
 })();
