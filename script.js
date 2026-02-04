@@ -370,40 +370,36 @@ window.popSupervisor = window.popSupervisor || (() => {
     console.log('[SUP] LOCK');
   }
 
-  function unlock() {
-    const stored = localStorage.getItem(KEY_PIN);
+function unlock() {
+  // ✅ Approved supervisor PIN (the only PIN that can unlock)
+  // Change this one value to your real PIN.
+  const APPROVED_PIN = '111111';
 
-    // First-time setup (on THIS device)
-    if (!stored) {
-      const p1 = prompt('Supervisor setup: create a new PIN for THIS device:');
-      if (!p1) return false;
-      const p2 = prompt('Confirm PIN:');
-      if (!p2 || p2 !== p1) {
-        alert('PINs did not match. Supervisor lock not changed.');
-        return false;
-      }
-      localStorage.setItem(KEY_PIN, p1);
-      localStorage.setItem(KEY_UNLOCKED, '1');
-      updateToolbarDisabledState();
-      window.setStatus?.('Supervisor unlocked (PIN set on this device).');
-      console.log('[SUP] UNLOCK (first-time set)');
-      return true;
-    }
+  // If a PIN was ever set on this device, use it.
+  // Otherwise force the device to use the approved PIN.
+  const stored = localStorage.getItem(KEY_PIN) || APPROVED_PIN;
 
-    // Normal unlock
-    const pin = prompt('Supervisor PIN required:');
-    if (!pin) return false;
-    if (pin !== stored) {
-      alert('Wrong PIN.');
-      return false;
-    }
-
-    localStorage.setItem(KEY_UNLOCKED, '1');
-    updateToolbarDisabledState();
-    window.setStatus?.('Supervisor unlocked.');
-    console.log('[SUP] UNLOCK');
-    return true;
+  // Ensure the device has a stored PIN so it stays consistent
+  if (!localStorage.getItem(KEY_PIN)) {
+    localStorage.setItem(KEY_PIN, stored);
   }
+
+  const pin = prompt('Supervisor PIN required:');
+  if (!pin) return false;
+
+  if (pin !== stored) {
+    alert('Wrong PIN.');
+    return false;
+  }
+
+  // ✅ stays unlocked on this device until manually locked
+  localStorage.setItem(KEY_UNLOCKED, '1');
+  updateToolbarDisabledState();
+  window.setStatus?.('Supervisor unlocked on this device.');
+  console.log('[SUP] UNLOCK');
+  return true;
+}
+
 
   function resetPin() {
     if (!isUnlocked()) {
@@ -459,6 +455,51 @@ window.popSupervisor = window.popSupervisor || (() => {
   return { isUnlocked, lock, unlock, resetPin, updateToolbarDisabledState };
 })();
 
+// ----- Supervisor panel (Step 1 UI) -----
+(function wireSupervisorPanel(){
+  function updateUI(){
+    const unlocked = !!window.popSupervisor?.isUnlocked?.();
+    const el = document.getElementById('sup-state');
+    if (el) el.textContent = unlocked ? 'Unlocked' : 'Locked';
+
+    // Only allow "Change PIN" when unlocked
+    const reset = document.getElementById('sup-reset-btn');
+    if (reset) reset.disabled = !unlocked;
+
+    // Keep toolbar disabled state correct too
+    window.popSupervisor?.updateToolbarDisabledState?.();
+  }
+
+  function wire(){
+    const u = document.getElementById('sup-unlock-btn');
+    const l = document.getElementById('sup-lock-btn');
+    const r = document.getElementById('sup-reset-btn');
+    if (!u || !l || !r) return;
+
+    u.addEventListener('click', () => {
+      window.popSupervisor?.unlock?.();
+      updateUI();
+    });
+
+    l.addEventListener('click', () => {
+      window.popSupervisor?.lock?.('Supervisor locked.');
+      updateUI();
+    });
+
+    r.addEventListener('click', () => {
+      window.popSupervisor?.resetPin?.();
+      updateUI();
+    });
+
+    updateUI();
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', wire);
+  } else {
+    wire();
+  }
+})();
 
 
 // ---------- Piece status mode selector (toolbar) ----------
@@ -1212,72 +1253,4 @@ document.getElementById('demo-hide')?.addEventListener('click', () => {
     document.getElementById('zoom-reset')?.addEventListener('click', () => { z = 1; applyZoom(); });
     applyZoom();
   });
-})();
-// ===== C) Touch long-press to unlock supervisor (no buttons, no step changes) =====
-// Long-press ~900ms on the image area (NOT on hotspots) to toggle lock/unlock.
-(function enableSupervisorLongPress(){
-  const HOLD_MS = 900;
-
-  function getPressTarget() {
-    // Prefer wrapper so it works even if the image element changes
-    return document.getElementById('image-wrapper')
-      || document.getElementById('viewer-wrapper')
-      || document.getElementById('sheet-image')
-      || document.getElementById('image');
-  }
-
-  function wire() {
-    const el = getPressTarget();
-    if (!el) return;
-
-    let t = null;
-    let startedOnHotspot = false;
-
-    const start = (ev) => {
-      // If the press starts on a hotspot, do NOTHING (don’t interfere with click & fetch)
-      startedOnHotspot = !!ev.target.closest?.('.map-hit');
-      if (startedOnHotspot) return;
-
-      // Only left mouse button if desktop
-      if (ev.pointerType === 'mouse' && ev.button !== 0) return;
-
-      // Start timer
-      t = setTimeout(() => {
-        t = null;
-
-        if (!window.popSupervisor) {
-          console.warn('[SUP] popSupervisor not found');
-          return;
-        }
-
-        // Toggle lock/unlock using the same PIN prompts you already have
-        if (window.popSupervisor.isUnlocked()) {
-          window.popSupervisor.lock('Supervisor locked.');
-        } else {
-          window.popSupervisor.unlock(); // first time: creates PIN; later: asks PIN
-        }
-
-        window.popSupervisor.updateToolbarDisabledState?.();
-      }, HOLD_MS);
-    };
-
-    const stop = () => {
-      if (t) { clearTimeout(t); t = null; }
-      startedOnHotspot = false;
-    };
-
-    // Use pointer events so it works on touch + mouse
-    el.addEventListener('pointerdown', start, { passive: true });
-    el.addEventListener('pointerup', stop, { passive: true });
-    el.addEventListener('pointercancel', stop, { passive: true });
-    el.addEventListener('pointerleave', stop, { passive: true });
-
-    console.log('[SUP] Long-press unlock wired on', el.id || el.className || el.tagName);
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', wire);
-  } else {
-    wire();
-  }
 })();

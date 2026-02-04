@@ -66,6 +66,24 @@
     <input id="job-input" type="password" placeholder="Enter access code (e.g. 24-36N)" />
   </div>
 
+    <!-- Supervisor Lock (front-page) -->
+  <div class="control" id="sup-panel" style="margin-top:10px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+      <strong>Supervisor lock:</strong>
+      <span id="sup-state" style="opacity:.85;">Locked</span>
+    </div>
+
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+      <button type="button" id="sup-unlock-btn">Unlock / Set PIN</button>
+      <button type="button" id="sup-lock-btn">Lock</button>
+      <button type="button" id="sup-reset-btn">Change PIN</button>
+    </div>
+
+    <div style="margin-top:8px; font-size:13px; opacity:.85; line-height:1.3;">
+      Unlock once at the start. While locked, status colors are blocked. Navigation never asks for a PIN.
+    </div>
+  </div>
+
   <div class="step-nav">
     <button type="button" class="back-btn" disabled>Back</button>
     <button type="button" class="next-btn" data-go="2" disabled>Next</button>
