@@ -3,6 +3,70 @@
 console.log("POP BOOT ✓ script file loaded", Date.now());
 'use strict';
 
+// ===============================
+// STATUS PERSISTENCE (per job + sheet + label)
+// ===============================
+function __jobId() {
+  return (window.currentJob && window.currentJob.id)
+    ? String(window.currentJob.id)
+    : String(document.getElementById('job-input')?.value || '').trim();
+}
+
+function __sheetKey() {
+  return String(window.currentSheetLabel || window.mapCurrentSheet || '').trim();
+}
+
+function __normLabel(label) {
+  return String(label || '')
+    .trim()
+    .replace(/\.[a-z0-9]+$/i, '') // remove .png/.jpg
+    .toUpperCase();
+}
+
+function __statusStoreKey() {
+  const job = __jobId() || 'UNKNOWN_JOB';
+  return `pop.status.${job}`;
+}
+
+function __readStatusStore() {
+  try {
+    return JSON.parse(localStorage.getItem(__statusStoreKey()) || '{}') || {};
+  } catch {
+    return {};
+  }
+}
+
+function __writeStatusStore(obj) {
+  localStorage.setItem(__statusStoreKey(), JSON.stringify(obj || {}));
+}
+
+function getSavedStatus(sheetLabel, pieceLabel) {
+  const store = __readStatusStore();
+  const sheet = __normLabel(sheetLabel);
+  const piece = __normLabel(pieceLabel);
+  return (store[sheet] && store[sheet][piece]) ? store[sheet][piece] : 'none';
+}
+
+function setSavedStatus(sheetLabel, pieceLabel, mode) {
+  const sheet = __normLabel(sheetLabel);
+  const piece = __normLabel(pieceLabel);
+  const m = String(mode || 'none');
+
+  const store = __readStatusStore();
+  store[sheet] = store[sheet] || {};
+
+  if (m === 'none') delete store[sheet][piece];
+  else store[sheet][piece] = m;
+
+  __writeStatusStore(store);
+}
+
+// emergency wipe for current job (only if you ever choose to use it)
+window.__wipeStatusesForJob = function () {
+  localStorage.removeItem(__statusStoreKey());
+  console.log('WIPED status store for job', __jobId());
+};
+
 // ---------- Elements (image is lazy-bound) ----------
 const els = {
   jobInput: document.getElementById('job-input'),
@@ -1013,102 +1077,95 @@ function renderMapNow() {
     if (label) {
       hit.dataset.label = label;
       hit.title = label;
-    }
+      // apply saved status color for this piece (persisted)
+// ✅ Apply saved status (from localStorage) every redraw
+const sheetKey = mapCurrentSheet || window.currentSheetLabel || '';
+const pieceKey = (rect.label || rect.tag || '').toString().trim().split('-').slice(-1)[0]; // core tag
+const saved = getSavedStatus(sheetKey, pieceKey);
 
-    // 🔁 RE-APPLY SAVED STATUS WHEN REDRAWING
-    if (label) {
-      const upper = String(label).trim().toUpperCase();
-      const core = upper.split('-').slice(-1)[0];          // "E3-129B" → "129B"
-      const key = statusKeyFor(core);
-      const mode = (window.pieceStatus || {})[key];
+hit.classList.remove('status-yellow','status-pink','status-blue','status-green');
 
-      const clsMap = {
-        yellow: 'status-yellow',
-        pink:   'status-pink',
-        blue:   'status-blue',
-        green:  'status-green'
-      };
+const clsMap = {
+  yellow: 'status-yellow',
+  pink:   'status-pink',
+  blue:   'status-blue',
+  green:  'status-green'
+};
 
-      if (mode && clsMap[mode]) {
-        hit.classList.add(clsMap[mode]);
-      }
+if (saved && saved !== 'none' && clsMap[saved]) {
+  hit.classList.add(clsMap[saved]);
+}
+
     }
 
     // Click → either mark status (if in a marking mode) or jump (normal mode)
-    hit.addEventListener('click', (ev) => {
-      ev.stopPropagation();
+  hit.addEventListener('click', (ev) => {
+  ev.stopPropagation();
 
-      const raw = ev.currentTarget.dataset.label || '';
+  const raw = ev.currentTarget.dataset.label || '';
 
-// normalize label:
-// - remove file extension (.png, .jpg, etc)
-// - trim
-// - uppercase ONLY for lookup
-const cleaned = String(raw)
-  .trim()
-  .replace(/\.[a-z0-9]+$/i, '');   // removes ".png", ".jpg", etc
+  const cleaned = String(raw)
+    .trim()
+    .replace(/\.[a-z0-9]+$/i, '');
 
-const core = cleaned
-  .split('-')
-  .slice(-1)[0]
-  .toUpperCase();                  // "a242" → "A242"
+  const core = cleaned
+    .split('-')
+    .slice(-1)[0]
+    .toUpperCase();
+
   const mode = window.currentStatusMode || 'none';
 
+// MARKING MODE
+if (mode !== 'none') {
+  if (!window.popSupervisor?.isUnlocked?.()) {
+    setStatus('Supervisor lock: press Ctrl+Shift+L to unlock.');
+    return;
+  }
 
-           // If we're in a marking mode, require supervisor unlock
-      if (mode !== 'none') {
-        if (!window.popSupervisor?.isUnlocked?.()) {
-          setStatus('Supervisor lock: press Ctrl+Shift+L to unlock.');
-          return;
-        }
+  const clsMap = {
+    yellow: 'status-yellow',
+    pink:   'status-pink',
+    blue:   'status-blue',
+    green:  'status-green'
+  };
 
-        const key = statusKeyFor(core);
+  ev.currentTarget.classList.remove(
+    'status-yellow',
+    'status-pink',
+    'status-blue',
+    'status-green'
+  );
 
-        const clsMap = {
-          yellow: 'status-yellow',
-          pink:   'status-pink',
-          blue:   'status-blue',
-          green:  'status-green'
-        };
+  if (clsMap[mode]) {
+    ev.currentTarget.classList.add(clsMap[mode]);
+  }
 
-        ev.currentTarget.classList.remove(
-          'status-yellow',
-          'status-pink',
-          'status-blue',
-          'status-green'
-        );
+  // ✅ localStorage is the ONLY source of truth
+  const sheetKey = mapCurrentSheet || window.currentSheetLabel || '';
+  setSavedStatus(sheetKey, core, mode);
 
-        if (clsMap[mode]) {
-          ev.currentTarget.classList.add(clsMap[mode]);
+  return;
+}
 
-          if (!window.pieceStatus) window.pieceStatus = {};
-          window.pieceStatus[key] = mode;
-          console.log('[STATUS] Set', key, '→', mode);
-        } else {
-          if (window.pieceStatus) delete window.pieceStatus[key];
-          console.log('[STATUS] Cleared', key);
-        }
-
-        return; // DO NOT jump in marking modes
-      }
-
-     // Normal mode: click & fetch
-if (rect && (rect.fetch || rect.map)) {
+  // NORMAL MODE
+// If this rect has fetch/map, treat it as a drilldown (click & fetch)
+// so Back can return to the previous sheet.
+if (rect.fetch || rect.map) {
   openFromHotspotRect(rect);
   return;
 }
 
-// fallback: old jump behavior (index-based)
+// otherwise fall back to jump behavior
 window._returnToSheet = window.currentSheetLabel;
 if (typeof window.jumpToLabel === 'function') {
   window.jumpToLabel(core || raw);
 }
 
-    });
+});
+  layer.appendChild(hit);
+}); // end forEach
 
-    layer.appendChild(hit);
-  });
-
+ 
   console.log('[MAP] Rendered', mapRects.length, 'boxes for', mapCurrentSheet);
 }
 window.renderMapNow = renderMapNow;
