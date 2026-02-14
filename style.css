@@ -215,6 +215,11 @@ button[disabled]{ opacity:.55; cursor:not-allowed; }
 .status-btn.status-rigged{ background:#f472b6; border-color:#db2777; color:#111827; }
 .status-btn.status-erected{ background:#60a5fa; border-color:#2563eb; color:#0b1120; }
 .status-btn.status-complete{ background:#4ade80; border-color:#16a34a; color:#052e16; }
+.status-btn.status-clear{
+  background: rgba(255,255,255,.08);
+  border-color: rgba(255,255,255,.25);
+  color: #e9eefc;
+}
 
 .status-btn:hover{ filter: brightness(1.05); }
 .status-btn.active{

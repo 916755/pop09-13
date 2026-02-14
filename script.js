@@ -1,7 +1,75 @@
+// ===============================
+// Supabase (Project API)
+// ===============================function
+const SUPABASE_URL = "https://rdjrvlwomfptdtpekhkf.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_uhNg9-afDOmbDVm34_BvEA_UhcHSMfC";
 
+// v2 CDN exposes createClient on the global `supabase` namespace.
+// We store the *client* on window.supabaseClient AND window.supabaseClientOnly,
+// and also expose `window.supabase` as the client for easy console testing.
+window.supabaseClient = window.supabaseClient || window.supabase.createClient(
+  SUPABASE_URL,
+  SUPABASE_ANON_KEY
+);
 
+console.log("Supabase initialized");
+// ===============================
+// Supabase: save piece status (one row)
+// ===============================
+async function sbSavePieceStatus({ jobId, jobCode, sheetLabel, pieceLabel, status }) {
+  const sb = window.supabaseClient;
+  if (!sb) throw new Error("Supabase client not initialized");
+
+  const row = {
+    job_id: jobId,                 // UUID
+    job_code: jobCode,             // "industrial/24-36N"
+    sheet_label: sheetLabel,       // "E3"
+    piece_label: pieceLabel,       // "125B"
+    status: status,                // "pink" | "blue" | ...
+    updated_at: new Date().toISOString()
+  };
+
+  const { error } = await sb
+    .from("piece_status")
+    .upsert(row, { onConflict: "job_id,sheet_label,piece_label" });
+
+  if (error) throw error;
+  return true;
+}
+window.sbSavePieceStatus = sbSavePieceStatus; // for testing
+
+// SUPABASE: batch load statuses for ONE sheet
+// ===============================
+async function sbLoadSheetStatuses(jobCode, sheetLabel) {
+  const sb = window.supabaseClient;
+  if (!sb) throw new Error("Supabase client missing");
+
+  const sheet = __normLabel(sheetLabel);
+
+  const { data, error } = await sb
+    .from("piece_status")
+    .select("piece_label,status")
+    .eq("job_code", jobCode)
+    .eq("sheet_label", sheet);
+
+  if (error) throw error;
+
+  const out = {};
+  for (const row of (data || [])) {
+    const k = __normLabel(row.piece_label);
+    out[k] = String(row.status || "none");
+  }
+
+  console.log("[SUPABASE] raw count", sheet, (data || []).length);
+  return out;
+}
+
+// in-memory cache for current sheet
+window.__sheetStatusMap = window.__sheetStatusMap || {};
+window.__sheetStatusKey = window.__sheetStatusKey || "";
 console.log("POP BOOT ✓ script file loaded", Date.now());
 'use strict';
+
 
 // ===============================
 // STATUS PERSISTENCE (per job + sheet + label)
@@ -48,17 +116,31 @@ function getSavedStatus(sheetLabel, pieceLabel) {
 }
 
 function setSavedStatus(sheetLabel, pieceLabel, mode) {
+  console.log("[STATUS] setSavedStatus()", { sheetLabel, pieceLabel, mode });
+
   const sheet = __normLabel(sheetLabel);
   const piece = __normLabel(pieceLabel);
-  const m = String(mode || 'none');
+  const status = String(mode || 'none');
 
+  // 1) localStorage save (so colors persist even if Supabase fails)
   const store = __readStatusStore();
   store[sheet] = store[sheet] || {};
 
-  if (m === 'none') delete store[sheet][piece];
-  else store[sheet][piece] = m;
+  if (status === 'none') delete store[sheet][piece];
+  else store[sheet][piece] = status;
 
   __writeStatusStore(store);
+
+  // 2) Supabase save
+  sbSavePieceStatus({
+    jobId: "5e23816a-9043-4f43-994e-df0118c1de94",
+    jobCode: "industrial/24-36N",
+    sheetLabel: sheet,
+    pieceLabel: piece,
+    status: status
+  })
+  .then(() => console.log("[SUPABASE] save ok", { sheet, piece, status }))
+  .catch(err => console.warn("[SUPABASE] save failed", err));
 }
 
 // emergency wipe for current job (only if you ever choose to use it)
@@ -567,11 +649,13 @@ function unlock() {
 
 
 // ---------- Piece status mode selector (toolbar) ----------
-window.currentStatusMode = 'none';  // "none", "yellow", "pink", "blue", "green"
+window.currentStatusMode = 'none';  // "none", "clear", "yellow", "pink", "blue", "green"
 
 function setStatusMode(mode) {
-  const valid = ['none', 'yellow', 'pink', 'blue', 'green'];
+  const valid = ['none', 'clear', 'yellow', 'pink', 'blue', 'green'];
   if (!valid.includes(mode)) mode = 'none';
+  
+console.log('[SUP] isUnlocked?', !!window.popSupervisor?.isUnlocked?.(), 'requested mode:', mode);
 
     // 🔒 Supervisor lock: block marking modes unless unlocked
   if (mode !== 'none' && !window.popSupervisor?.isUnlocked?.()) {
@@ -591,6 +675,7 @@ function setStatusMode(mode) {
   // Optional: status text
   const labelMap = {
     none:   'Normal (click & fetch)',
+    clear:  'Clear mode: tap a piece to remove status',
     yellow: 'Marking: Not located',
     pink:   'Marking: Rigged',
     blue:   'Marking: Erected',
@@ -1031,6 +1116,33 @@ const mapUrl = mapPath ? (mapPath.startsWith('jobs/') ? mapPath : jobRoot + mapP
 }
 
 function renderMapNow() {
+    // ---- Supabase batch load (once per sheet) ----
+  if (window.supabaseClient) {
+    const jobCode = "industrial/24-36N"; // keep hard-coded for now
+    const sheet = __normLabel(window.currentSheetLabel || window.mapCurrentSheet || "");
+    const key = `${jobCode}::${sheet}`;
+
+    if (sheet && window.__sheetStatusKey !== key) {
+      window.__sheetStatusKey = key;
+
+      sbLoadSheetStatuses(jobCode, sheet)
+        .then(map => {
+          window.__sheetStatusMap = map || {};
+          console.log("[SUPABASE] sheet statuses loaded", sheet, Object.keys(window.__sheetStatusMap).length);
+
+          // re-render once statuses arrive (so colors apply)
+          renderMapNow();
+        })
+        .catch(e => {
+          console.warn("[SUPABASE] batch load failed", e);
+          window.__sheetStatusMap = {};
+        });
+
+      // stop this render; we will re-render after statuses load
+      return;
+    }
+  }
+
   const img = mapGetImageEl();
   const layer = mapGetLayer();
   if (!img || !layer) return;
@@ -1077,12 +1189,9 @@ function renderMapNow() {
     if (label) {
       hit.dataset.label = label;
       hit.title = label;
-      // apply saved status color for this piece (persisted)
-// ✅ Apply saved status (from localStorage) every redraw
-const sheetKey = mapCurrentSheet || window.currentSheetLabel || '';
-const pieceKey = (rect.label || rect.tag || '').toString().trim().split('-').slice(-1)[0]; // core tag
-const saved = getSavedStatus(sheetKey, pieceKey);
-
+     const norm = __normLabel(hit.dataset.label || '');
+const saved = (window.__sheetStatusMap && window.__sheetStatusMap[norm]) || 'none';
+// apply Supabase-loaded status classes on redraw
 hit.classList.remove('status-yellow','status-pink','status-blue','status-green');
 
 const clsMap = {
@@ -1097,6 +1206,9 @@ if (saved && saved !== 'none' && clsMap[saved]) {
 }
 
     }
+      // apply saved status color for this piece (persisted)
+
+    
 
     // Click → either mark status (if in a marking mode) or jump (normal mode)
   hit.addEventListener('click', (ev) => {
@@ -1122,30 +1234,40 @@ if (mode !== 'none') {
     return;
   }
 
-  const clsMap = {
-    yellow: 'status-yellow',
-    pink:   'status-pink',
-    blue:   'status-blue',
-    green:  'status-green'
-  };
-
+  // remove all status classes first
   ev.currentTarget.classList.remove(
+    'status-clear',
     'status-yellow',
     'status-pink',
     'status-blue',
     'status-green'
   );
 
-  if (clsMap[mode]) {
-    ev.currentTarget.classList.add(clsMap[mode]);
+  const sheetKey = mapCurrentSheet || window.currentSheetLabel || '';
+
+  if (mode === 'clear') {
+    // ERASER MODE
+    setSavedStatus(sheetKey, core, 'none');
+    setStatus(`Cleared ${core}`);
+  } else {
+    const clsMap = {
+      clear:  'status-clear',
+      yellow: 'status-yellow',
+      pink:   'status-pink',
+      blue:   'status-blue',
+      green:  'status-green'
+    };
+
+    if (clsMap[mode]) {
+      ev.currentTarget.classList.add(clsMap[mode]);
+    }
+
+    setSavedStatus(sheetKey, core, mode);
   }
 
-  // ✅ localStorage is the ONLY source of truth
-  const sheetKey = mapCurrentSheet || window.currentSheetLabel || '';
-  setSavedStatus(sheetKey, core, mode);
-
-  return;
+  return; // never navigate while marking or clearing
 }
+
 
   // NORMAL MODE
 // If this rect has fetch/map, treat it as a drilldown (click & fetch)

@@ -27,12 +27,13 @@
   <ol>
     <li>Enter access code: <b>industrial/24-36N</b></li>
     <li>Select an E-sheet.</li>
-    <li><b>Normal Mode:</b> click a member hotspot to jump to its detail sheet (Click &amp; Fetch).</li>
-<li><b>Yellow:</b> Not located</li>
-<li><b>Pink:</b> Rigged</li>
-<li><b>Blue:</b> Connected / Erected</li>
-<li><b>Green:</b> 100%</li>
-<LI>Must click normal for click and fetch (beam/column pops up) click on secondary member (angle/plate pops up).</LI>
+    <li><b>Normal Mode:</b> Click &amp; Fetch only (no painting).</li>
+    <li><b>Clear:</b> Supervisor erase mode — tap a painted piece to remove its color (back to default).</li>
+    <li><b>Yellow:</b> Not located</li>
+    <li><b>Pink:</b> Rigged</li>
+    <li><b>Blue:</b> Connected / Erected</li>
+    <li><b>Green:</b> 100%</li>
+    <LI>Must click normal for click and fetch (beam/column pops up) click on secondary member (angle/plate pops up).</LI>
   </ol>
 </div>
 
@@ -149,6 +150,12 @@
       </button>
 
       <button type="button"
+        class="status-btn status-clear"
+        data-status="clear">
+        clear
+      </button>
+
+      <button type="button"
               class="status-btn status-missing"
               data-status="yellow">
         Not located
@@ -214,7 +221,9 @@
     </footer>
 
   </div>                <!-- wrapper ends -->
-
+  
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="./script.js?v=zoom1"></script>
 </body>
 </html>
+
