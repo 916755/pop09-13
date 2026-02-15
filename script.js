@@ -1213,6 +1213,7 @@ if (saved && saved !== 'none' && clsMap[saved]) {
     // Click → either mark status (if in a marking mode) or jump (normal mode)
   hit.addEventListener('click', (ev) => {
   ev.stopPropagation();
+const hitEl = ev.currentTarget; // lock to this specific hotspot
 
   const raw = ev.currentTarget.dataset.label || '';
 
@@ -1235,7 +1236,7 @@ if (mode !== 'none') {
   }
 
   // remove all status classes first
-  ev.currentTarget.classList.remove(
+ hitEl.classList.remove(
     'status-clear',
     'status-yellow',
     'status-pink',
@@ -1259,7 +1260,8 @@ if (mode !== 'none') {
     };
 
     if (clsMap[mode]) {
-      ev.currentTarget.classList.add(clsMap[mode]);
+     hitEl.classList.add(clsMap[mode]);
+
     }
 
     setSavedStatus(sheetKey, core, mode);
