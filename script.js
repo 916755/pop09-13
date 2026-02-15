@@ -657,7 +657,7 @@ function unlock() {
 
 // ---------- Piece status mode selector (toolbar) ----------
 window.currentStatusMode = 'none';  // "none", "clear", "yellow", "pink", "blue", "green"
-
+window.__lastModeSwitchAt = Date.now();
 function setStatusMode(mode) {
   const valid = ['none', 'clear', 'yellow', 'pink', 'blue', 'green'];
   if (!valid.includes(mode)) mode = 'none';
@@ -1224,6 +1224,9 @@ if (saved && saved !== 'none' && clsMap[saved]) {
     // Click → either mark status (if in a marking mode) or jump (normal mode)
   hit.addEventListener('click', (ev) => {
   ev.stopPropagation();
+  // ✅ Mobile safety: ignore stray tap right after switching modes (prevents auto-clear)
+if (Date.now() - (window.__lastModeSwitchAt || 0) < 450) return;
+
 const hitEl = ev.currentTarget; // lock to this specific hotspot
 
   const raw = ev.currentTarget.dataset.label || '';
