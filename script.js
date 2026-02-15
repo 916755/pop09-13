@@ -699,10 +699,14 @@ console.log('[SUP] isUnlocked?', !!window.popSupervisor?.isUnlocked?.(), 'reques
     if (!buttons.length) return; // nothing to do (safety)
 
     buttons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const mode = btn.getAttribute('data-status') || 'none';
-        setStatusMode(mode);
-      });
+      btn.addEventListener('click', (e) => {
+  e.preventDefault();
+  e.stopPropagation(); 
+  // ✅ prevents the tap from falling through to a hotspot on mobile
+  const mode = btn.getAttribute('data-status') || 'none';
+  setStatusMode(mode);
+});
+
     });
 
     // Default to Normal on load
