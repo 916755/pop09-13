@@ -1221,10 +1221,8 @@ const hitEl = ev.currentTarget; // lock to this specific hotspot
     .trim()
     .replace(/\.[a-z0-9]+$/i, '');
 
-  const core = cleaned
-    .split('-')
-    .slice(-1)[0]
-    .toUpperCase();
+  
+const core = __normLabel(ev.currentTarget.dataset.label || '');
 
   const mode = window.currentStatusMode || 'none';
 
