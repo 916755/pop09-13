@@ -1,6 +1,6 @@
 // ===============================
 // Supabase (Project API)
-// ===============================function
+// ===============================
 const SUPABASE_URL = "https://rdjrvlwomfptdtpekhkf.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_uhNg9-afDOmbDVm34_BvEA_UhcHSMfC";
 
@@ -130,6 +130,13 @@ function setSavedStatus(sheetLabel, pieceLabel, mode) {
   else store[sheet][piece] = status;
 
   __writeStatusStore(store);
+
+    // ✅ keep in-memory sheet cache in sync (prevents mobile re-render from "bringing back" colors)
+  window.__sheetStatusMap = window.__sheetStatusMap || {};
+  if (sheet && piece) {
+    if (status === 'none') delete window.__sheetStatusMap[piece];
+    else window.__sheetStatusMap[piece] = status;
+  }
 
   // 2) Supabase save
   sbSavePieceStatus({
