@@ -14,6 +14,43 @@ window.supabaseClient = window.supabaseClient || window.supabase.createClient(
 
 console.log("Supabase initialized");
 // ===============================
+// REALTIME: job_logs subscription (cross-device updates)
+// ===============================
+window.__jobLogsSub = window.__jobLogsSub || null;
+
+function startJobLogsRealtime(jobCode) {
+  const sb = window.supabaseClient;
+  if (!sb) return;
+
+  // stop previous subscription (if any)
+  try {
+    if (window.__jobLogsSub) sb.removeChannel(window.__jobLogsSub);
+  } catch {}
+
+  window.__jobLogsSub = sb
+    .channel('job_logs_' + jobCode)
+    .on(
+      'postgres_changes',
+      {
+        event: '*',
+        schema: 'public',
+        table: 'job_logs',
+        filter: `job_code=eq.${jobCode}`
+      },
+      (payload) => {
+        console.log('[REALTIME] job_logs change', payload.eventType, payload.new || payload.old);
+        window.__lastJobLogEvent = payload;
+        // later we will refresh the Office Logistics list UI here
+      }
+    )
+    .subscribe((status) => {
+      console.log('[REALTIME] subscribed', status, 'job_code=', jobCode);
+    });
+}
+
+window.startJobLogsRealtime = startJobLogsRealtime; // for console testing
+
+// ===============================
 // Supabase: save piece status (one row)
 // ===============================
 async function sbSavePieceStatus({ jobId, jobCode, sheetLabel, pieceLabel, status }) {
@@ -114,6 +151,38 @@ function getSavedStatus(sheetLabel, pieceLabel) {
   const piece = __normLabel(pieceLabel);
   return (store[sheet] && store[sheet][piece]) ? store[sheet][piece] : 'none';
 }
+// ===============================
+// UNDO (last status change)
+// ===============================
+window.__undoStack = window.__undoStack || [];
+window.__undoApplying = false;
+
+function __pushUndo({ sheet, piece, prev, next }) {
+  if (window.__undoApplying) return;
+  if (!sheet || !piece) return;
+  if (prev === next) return;
+
+  window.__undoStack.push({ sheet, piece, prev, next, t: Date.now() });
+  if (window.__undoStack.length > 50) window.__undoStack.shift();
+}
+
+window.undoLastStatus = function undoLastStatus() {
+  const last = window.__undoStack.pop();
+  if (!last) {
+    setStatus('Nothing to undo.');
+    return;
+  }
+
+  window.__undoApplying = true;
+  try {
+    setSavedStatus(last.sheet, last.piece, last.prev);
+    setStatus(`Undo: ${last.piece} → ${last.prev === 'none' ? 'default' : last.prev}`);
+  } finally {
+    window.__undoApplying = false;
+  }
+
+  if (typeof window.renderMapNow === 'function') window.renderMapNow();
+};
 
 function setSavedStatus(sheetLabel, pieceLabel, mode) {
   console.log("[STATUS] setSavedStatus()", { sheetLabel, pieceLabel, mode });
@@ -121,6 +190,8 @@ function setSavedStatus(sheetLabel, pieceLabel, mode) {
   const sheet = __normLabel(sheetLabel);
   const piece = __normLabel(pieceLabel);
   const status = String(mode || 'none');
+const prev = getSavedStatus(sheet, piece);
+__pushUndo({ sheet, piece, prev, next: status });
 
   // 1) localStorage save (so colors persist even if Supabase fails)
   const store = __readStatusStore();
@@ -297,6 +368,8 @@ async function loadIndexForCurrentJob() {
       return a.localeCompare(b);
     });
 
+    cats.unshift('Office Logistics');
+
     if (els.categorySelect) {
       els.categorySelect.innerHTML = makeOptions(
         cats.map(c => ({
@@ -385,6 +458,21 @@ async function loadIndexForCurrentJob() {
 
       els.categorySelect?.addEventListener('change', () => {
         const cat = els.categorySelect.value;
+         // Office Logistics is a "virtual category"
+if (cat === 'Office Logistics') {
+  // show logistics step/page
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-office')?.classList.add('active');
+
+  setStatus(`Office Logistics — job: ${window.currentJob?.id || ''}`);
+  document.getElementById('office-job-code').textContent = window.currentJob?.id || '';
+
+
+  // Optional: keep Step-2 Next disabled since we're not browsing images
+  if (els.step2Next) els.step2Next.disabled = true;
+  return;
+}
+
         const base = window.currentIndex[cat] || [];
         if (els.step2Next) els.step2Next.disabled = !cat;
 
@@ -404,6 +492,7 @@ async function loadIndexForCurrentJob() {
               label: x.label || x.name || x.path
             })),
             'Select a sheet'
+           
           );
         }
         if (window._items.length) {
@@ -1220,84 +1309,70 @@ if (saved && saved !== 'none' && clsMap[saved]) {
       // apply saved status color for this piece (persisted)
 
     
-
-    // Click → either mark status (if in a marking mode) or jump (normal mode)
-  hit.addEventListener('click', (ev) => {
+// Click → either mark status (if in a marking mode) or jump (normal mode)
+hit.addEventListener('click', (ev) => {
   ev.stopPropagation();
+
   // ✅ Mobile safety: ignore stray tap right after switching modes (prevents auto-clear)
-if (Date.now() - (window.__lastModeSwitchAt || 0) < 450) return;
+  if (Date.now() - (window.__lastModeSwitchAt || 0) < 450) return;
 
-const hitEl = ev.currentTarget; // lock to this specific hotspot
+  const hitEl = ev.currentTarget; // lock to this specific hotspot
 
-  const raw = ev.currentTarget.dataset.label || '';
-
-  const cleaned = String(raw)
-    .trim()
-    .replace(/\.[a-z0-9]+$/i, '');
-
-  
-const core = __normLabel(ev.currentTarget.dataset.label || '');
+  const raw = hitEl.dataset.label || '';
+  const core = __normLabel(raw);
 
   const mode = window.currentStatusMode || 'none';
+  const sheetKey = mapCurrentSheet || window.currentSheetLabel || '';
 
-// MARKING MODE
-if (mode !== 'none') {
-  if (!window.popSupervisor?.isUnlocked?.()) {
-    setStatus('Supervisor lock: press Ctrl+Shift+L to unlock.');
+  // MARKING / CLEAR MODE
+  if (mode !== 'none') {
+    if (!window.popSupervisor?.isUnlocked?.()) {
+      setStatus('Supervisor lock: press Ctrl+Shift+L to unlock.');
+      return;
+    }
+
+    // remove all status classes first
+    hitEl.classList.remove(
+      'status-clear',
+      'status-yellow',
+      'status-pink',
+      'status-blue',
+      'status-green'
+    );
+
+    if (mode === 'clear') {
+      // ERASER MODE (single piece)
+      setSavedStatus(sheetKey, core, 'none');
+      setStatus(`Cleared ${core}`);
+    } else {
+      const clsMap = {
+        clear:  'status-clear',
+        yellow: 'status-yellow',
+        pink:   'status-pink',
+        blue:   'status-blue',
+        green:  'status-green'
+      };
+
+      if (clsMap[mode]) hitEl.classList.add(clsMap[mode]);
+      setSavedStatus(sheetKey, core, mode);
+    }
+
+    return; // never navigate while marking or clearing
+  }
+
+  // NORMAL MODE: click & fetch
+  if (rect.fetch || rect.map) {
+    openFromHotspotRect(rect);
     return;
   }
 
-  // remove all status classes first
- hitEl.classList.remove(
-    'status-clear',
-    'status-yellow',
-    'status-pink',
-    'status-blue',
-    'status-green'
-  );
-
-  const sheetKey = mapCurrentSheet || window.currentSheetLabel || '';
-
-  if (mode === 'clear') {
-    // ERASER MODE
-    setSavedStatus(sheetKey, core, 'none');
-    setStatus(`Cleared ${core}`);
-  } else {
-    const clsMap = {
-      clear:  'status-clear',
-      yellow: 'status-yellow',
-      pink:   'status-pink',
-      blue:   'status-blue',
-      green:  'status-green'
-    };
-
-    if (clsMap[mode]) {
-     hitEl.classList.add(clsMap[mode]);
-
-    }
-
-    setSavedStatus(sheetKey, core, mode);
+  // fallback: jump behavior
+  window._returnToSheet = window.currentSheetLabel;
+  if (typeof window.jumpToLabel === 'function') {
+    window.jumpToLabel(core || raw);
   }
-
-  return; // never navigate while marking or clearing
-}
-
-
-  // NORMAL MODE
-// If this rect has fetch/map, treat it as a drilldown (click & fetch)
-// so Back can return to the previous sheet.
-if (rect.fetch || rect.map) {
-  openFromHotspotRect(rect);
-  return;
-}
-
-// otherwise fall back to jump behavior
-window._returnToSheet = window.currentSheetLabel;
-if (typeof window.jumpToLabel === 'function') {
-  window.jumpToLabel(core || raw);
-}
-
 });
+
   layer.appendChild(hit);
 }); // end forEach
 
@@ -1447,3 +1522,69 @@ document.getElementById('demo-hide')?.addEventListener('click', () => {
     applyZoom();
   });
 })();
+
+
+// ===============================
+// UNDO BUTTON WIRING
+// ===============================
+document.addEventListener('DOMContentLoaded', () => {
+  const undoBtn = document.getElementById('undo-btn');
+  if (!undoBtn) return;
+
+  undoBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    window.undoLastStatus?.();
+  });
+   // ===============================
+// Office Logistics — Daily Log SAVE
+// ===============================
+document.getElementById('office-daily-log-save')?.addEventListener('click', async () => {
+  try {
+    const sb = window.supabaseClient;
+    if (!sb) {
+      alert("Supabase not ready");
+      return;
+    }
+
+    const jobCode = window.currentJob?.id || '';
+    if (!jobCode) {
+      alert("No job loaded");
+      return;
+    }
+
+    const text = document.getElementById('office-daily-log').value || '';
+    const today = new Date().toISOString().slice(0, 10);
+
+    const { error } = await sb
+      .from('daily_logs')
+      .upsert({
+        job_code: jobCode,
+        log_date: today,
+        appers: text,
+        updated_at: new Date().toISOString()
+      }, { onConflict: 'job_code,log_date' });
+
+    if (error) throw error;
+
+    document.getElementById('office-daily-log-meta').textContent =
+      "Saved at " + new Date().toLocaleTimeString();
+
+  } catch (err) {
+    console.error(err);
+    alert("Save failed — see console");
+  }
+});
+// ===============================
+// Office Logistics — Daily Log open/close
+// ===============================
+document.getElementById('office-open-dailylog-btn')?.addEventListener('click', () => {
+  document.getElementById('office-dailylog-panel').style.display = 'block';
+});
+
+document.getElementById('office-daily-log-close')?.addEventListener('click', () => {
+  document.getElementById('office-dailylog-panel').style.display = 'none';
+});
+
+
+});
+

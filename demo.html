@@ -62,6 +62,13 @@
 <section class="step active" id="step-1" aria-labelledby="step1-title">
   <h2 id="step1-title" class="visually-hidden">Step 1: Access Code</h2>
 
+  <!-- Office Logistics Button -->
+<div class="control">
+  <button type="button" id="office-logistics-btn">
+    Office Logistics
+  </button>
+</div>
+
   <div class="control">
     <label for="job-input">Access code:</label>
     <input id="job-input" type="password" placeholder="Enter access code (e.g. 24-36N)" />
@@ -105,6 +112,53 @@
     <button type="button" class="next-btn" data-go="3" disabled>Next</button>
   </div>
 </section>
+
+<!-- STEP: Office Logistics -->
+<section class="step" id="step-office" aria-labelledby="office-title">
+  <h2 id="office-title">Office Logistics</h2>
+
+  <div class="control" style="font-size:14px; opacity:.85;">
+    <div><strong>Job:</strong> <span id="office-job-code">(not set)</span></div>
+    <div><strong>Docs sync:</strong> Realtime (Supabase)</div>
+  </div>
+  <div id="office-dailylog-panel" class="office-card" style="display:none;">
+  <h3>Daily Log (Appers)</h3>
+
+  <div class="control">
+    <label for="office-daily-log">Notes</label>
+    <textarea id="office-daily-log" rows="8" placeholder="Type today’s daily log…"></textarea>
+  </div>
+
+  <div class="step-nav" style="gap:10px;">
+    <button type="button" id="office-daily-log-save">Save</button>
+    <button type="button" id="office-daily-log-close">Close</button>
+  </div>
+
+  <p class="muted" id="office-daily-log-meta"></p>
+</div>
+
+
+  <div class="step-nav">
+    <button type="button" id="office-daily-log-save">Save</button>
+  </div>
+
+  <p class="muted" id="office-daily-log-meta"></p>
+</div>
+
+
+  <div class="control" style="display:flex; gap:10px; flex-wrap:wrap;">
+    <button type="button" id="office-open-dailylog-btn">Daily Log / Notes (Appers)</button>
+    <button type="button" id="office-open-jsa-btn">JSA (Job Safety Analysis)</button>
+    <button type="button" id="office-open-inspection-btn">Daily Equipment Inspection</button>
+    <button type="button" id="office-open-timesheet-btn">Time Sheet (Supervisor)</button>
+    <button type="button" id="office-open-equipmenthours-btn">Equipment Hours (Supervisor)</button>
+  </div>
+
+  <div class="control">
+    <button type="button" id="office-back-btn">Back to Categories</button>
+  </div>
+</section>
+
 
 <!-- Jump controls -->
 <div class="jump-row" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-block:8px;">
@@ -182,6 +236,10 @@
       <button id="status-save-btn" type="button">
               Save status JSON
       </button>
+      <button id="undo-btn" type="button" title="Undo last status change">
+              Undo
+      </button>
+
 
     </div>
 
