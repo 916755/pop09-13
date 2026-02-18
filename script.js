@@ -379,6 +379,14 @@ async function loadIndexForCurrentJob() {
         'Select a category'
       );
       els.categorySelect.value = '';
+      // ✅ Ensure Office Logistics is always available as a virtual category
+if (els.categorySelect && !Array.from(els.categorySelect.options).some(o => o.value === 'Office Logistics')) {
+  const opt = document.createElement('option');
+  opt.value = 'Office Logistics';
+  opt.textContent = 'Office Logistics';
+  els.categorySelect.appendChild(opt);
+}
+
     }
     if (els.step2Next) els.step2Next.disabled = true;
     if (els.sheetSelect) els.sheetSelect.innerHTML = makeOptions([], 'Select a sheet');

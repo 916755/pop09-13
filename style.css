@@ -493,3 +493,16 @@ button[disabled]{ opacity:.55; cursor:not-allowed; }
   max-width: none !important;
   height: auto !important;
 }
+/* === FIX: sticky header overlapping content === */
+:root{
+  --topbar-h: 92px; /* adjust if needed */
+}
+
+body{
+  padding-top: var(--topbar-h);
+}
+
+/* Prevent anchor/scroll-to headings from hiding under the header */
+[id]{
+  scroll-margin-top: calc(var(--topbar-h) + 16px);
+}
