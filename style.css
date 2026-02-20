@@ -506,3 +506,23 @@ body{
 [id]{
   scroll-margin-top: calc(var(--topbar-h) + 16px);
 }
+/* ===============================
+   Inventory Checkmark Overlay
+=============================== */
+.hit.inventory-checked::after {
+  content: "✓";
+  position: absolute;
+  top: -8px;
+  right: -8px;
+  width: 18px;
+  height: 18px;
+  background: #2ecc71;
+  color: #fff;
+  font-size: 14px;
+  font-weight: bold;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}

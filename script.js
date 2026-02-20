@@ -294,7 +294,7 @@ function naturalByLabel(a, b) {
 }
 
 function group(items) {
-  const out = { All: [] };
+  const out = { Inventory: [] };
   for (const it of items) {
     // ✅ FIX: include fetch in rawPath so categorization works even when path is missing
     const rawPath = String(it.path || it.image || it.fetch || it.file || '').replace(/^\.\//, '');
@@ -332,7 +332,7 @@ function group(items) {
     };
 
     (out[cat] ||= []).push(norm);
-    out.All.push(norm);
+    out.Inventory.push(norm);
   }
   return out;
 }
@@ -363,8 +363,8 @@ async function loadIndexForCurrentJob() {
 
     // categories
     const cats = Object.keys(groups).sort((a, b) => {
-      if (a === 'All' && b !== 'All') return 1;
-      if (b === 'All' && a !== 'All') return -1;
+      if (a === 'Inventory' && b !== 'Inventory') return 1;
+      if (b === 'Inventory' && a !== 'Inventory') return -1;
       return a.localeCompare(b);
     });
 
@@ -584,7 +584,7 @@ document.addEventListener('click', (ev) => {
 
   // stop the normal step-nav ([data-go]) from firing
   ev.preventDefault();
-  ev.stopPropagation();
+
 
   const st = window.drillStack?.pop();
   if (!st) {
@@ -1595,4 +1595,120 @@ document.getElementById('office-daily-log-close')?.addEventListener('click', () 
 
 
 });
+// ===============================
+// Inventory Mode (DEMO ONLY)
+// ===============================
+window.inventoryMode = false;
 
+document.addEventListener("DOMContentLoaded", () => {
+  const invBox = document.getElementById("inventory-mode");
+  if (!invBox) return;
+
+  invBox.addEventListener("change", () => {
+    window.inventoryMode = invBox.checked;
+
+    if (typeof setStatus === "function") {
+      setStatus(window.inventoryMode
+        ? "Inventory mode ON — click a piece to toggle checkmark."
+        : "Inventory mode OFF.");
+    }
+  });
+});
+// ===============================
+// Offload Inventory — open page
+// ===============================
+document.addEventListener('DOMContentLoaded', () => {
+  const btn = document.getElementById('open-inventory');
+  if (!btn) return;
+
+  btn.addEventListener('click', () => {
+    // hide all steps
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    // show inventory step
+    document.getElementById('step-inventory')?.classList.add('active');
+
+    if (typeof setStatus === 'function') setStatus('Offload Inventory');
+  });
+});
+
+// ===============================
+// Step Navigation FIX (Back/Next)
+// ===============================
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('button[data-go]').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const n = parseInt(btn.getAttribute('data-go'), 10);
+      if (!n) return;
+
+      document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+      document.getElementById(`step-${n}`)?.classList.add('active');
+    });
+  });
+});
+
+// ===============================
+// Offload Inventory — populate list
+// ===============================
+function isErectionSheetLabel(label) {
+  const s = String(label || '').trim().toUpperCase();
+  return /^E[-_ ]?\d+$/.test(s);   // matches E0, E1, E-3, etc.
+}
+
+function getOffloadSourceItems() {
+  // use the big Inventory/All bucket if present
+  if (window.groups?.Inventory) return window.groups.Inventory;
+  if (window.groups?.All) return window.groups.All;
+
+  // fallback to any global list
+  if (window.allItems) return window.allItems;
+  if (window.currentItems) return window.currentItems;
+
+  return [];
+}
+function populateInventoryList() {
+  const container = document.getElementById('inv-list');
+  if (!container) return;
+
+  container.innerHTML = '';
+
+  const items = window.currentIndex?.Inventory || [];
+  items.forEach(it => {
+  const label = it.label || it.name || '(unknown)';
+
+  const row = document.createElement('div');
+
+  const cb = document.createElement('input');
+  cb.type = 'checkbox';
+  cb.className = 'inv-cb';
+  cb.dataset.label = label;
+
+  const text = document.createElement('span');
+  text.textContent = label;
+
+  row.appendChild(cb);
+  row.appendChild(text);
+  container.appendChild(row);
+});
+}
+
+// run when opening inventory page
+document.getElementById('open-inventory')?.addEventListener('click', () => {
+  setTimeout(populateInventoryList, 50);
+});
+
+// ===============================
+// Offload Inventory — Step 2 button (delegated click)
+// ===============================
+document.addEventListener('click', (ev) => {
+  const btn = ev.target?.closest?.('#open-inventory-step2');
+  if (!btn) return;
+
+  ev.preventDefault();
+
+  // show inventory page
+  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+  document.getElementById('step-inventory')?.classList.add('active');
+  setTimeout(populateInventoryList, 50);
+
+  if (typeof setStatus === 'function') setStatus('Offload Inventory');
+});

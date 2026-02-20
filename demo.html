@@ -107,6 +107,10 @@
     <select id="category-select"></select>
   </div>
 
+  <button id="open-inventory-step2" type="button" style="margin-top:10px;">
+    Offload Inventory
+  </button>
+
   <div class="step-nav">
     <button type="button" class="back-btn" data-go="1">Back</button>
     <button type="button" class="next-btn" data-go="3" disabled>Next</button>
@@ -239,6 +243,15 @@
       <button id="undo-btn" type="button" title="Undo last status change">
               Undo
       </button>
+      
+      <label style="display:inline-flex; align-items:center; gap:8px; margin-left:10px;">
+      <input type="checkbox" id="inventory-mode" />
+        Inventory
+      </label>
+
+      <button id="open-inventory" type="button" style="margin-left:10px;">
+        Offload Inventory
+      </button>
 
 
     </div>
@@ -270,7 +283,25 @@
     <button type="button" class="back-btn" data-go="3">Back</button>
   </div>
 </section>
+<!-- STEP: Offload Inventory -->
+<section class="step" id="step-inventory">
 
+  <div class="control">
+    <h3>Offload Inventory</h3>
+    <div style="opacity:.8;">
+      Check pieces as they are unloaded.
+    </div>
+  </div>
+
+  <div class="control">
+    <div id="inv-list"></div>
+  </div>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" data-go="2">Back</button>
+  </div>
+
+</section>
 </main>
 
 
@@ -284,6 +315,5 @@
 <script src="./script.js?v=zoom3"></script>
 
 </body>
-</html>
-
+</html>   
 
