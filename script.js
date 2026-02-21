@@ -1,4 +1,14 @@
 // ===============================
+// PWA Offline Boot — Service Worker
+// ===============================
+if ("serviceWorker" in navigator) {
+  window.addEventListener("load", () => {
+    navigator.serviceWorker.register("./sw.js").catch(err => {
+      console.log("[SW] register failed", err);
+    });
+  });
+}
+// ===============================
 // Supabase (Project API)
 // ===============================
 const SUPABASE_URL = "https://rdjrvlwomfptdtpekhkf.supabase.co";
