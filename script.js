@@ -1672,22 +1672,51 @@ function populateInventoryList() {
   container.innerHTML = '';
 
   const items = window.currentIndex?.Inventory || [];
+    
+  // Ensure quantity tracking fields exist (in-memory, safe)
+  items.forEach(it => {
+    if (typeof it.expected === 'undefined') it.expected = null; // unknown qty
+    if (typeof it.received === 'undefined') it.received = 0;    // starts at 0
+  });
   items.forEach(it => {
   const label = it.label || it.name || '(unknown)';
 
   const row = document.createElement('div');
 
-  const cb = document.createElement('input');
-  cb.type = 'checkbox';
-  cb.className = 'inv-cb';
-  cb.dataset.label = label;
+const text = document.createElement('span');
+text.textContent = label + '   ';
 
-  const text = document.createElement('span');
-  text.textContent = label;
+const minus = document.createElement('button');
+minus.textContent = '-';
+minus.className = 'qty-btn';
 
-  row.appendChild(cb);
-  row.appendChild(text);
-  container.appendChild(row);
+const count = document.createElement('span');
+count.className = 'qty-count';
+count.textContent = it.received;
+
+const plus = document.createElement('button');
+plus.textContent = '+';
+plus.className = 'qty-btn';
+
+// Button logic
+minus.onclick = () => {
+  if (it.received > 0) {
+    it.received--;
+    count.textContent = it.received;
+  }
+};
+
+plus.onclick = () => {
+  it.received++;
+  count.textContent = it.received;
+};
+
+row.appendChild(text);
+row.appendChild(minus);
+row.appendChild(count);
+row.appendChild(plus);
+
+container.appendChild(row);
 });
 }
 
