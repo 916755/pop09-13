@@ -1,7 +1,8 @@
 {
   "name": "Prince of Prints",
   "short_name": "PoP",
-  "start_url": "demo.html",
+  "start_url": "/",
+  "scope": "/",
   "display": "standalone",
   "background_color": "#0b2a4a",
   "theme_color": "#0b2a4a",
