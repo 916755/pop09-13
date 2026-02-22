@@ -3,8 +3,8 @@
   "short_name": "PoP",
   "start_url": "demo.html",
   "display": "standalone",
-  "background_color": "#0b1020",
-  "theme_color": "#0b1020",
+  "background_color": "#0b2a4a",
+  "theme_color": "#0b2a4a",
   "icons": [
   {
     "src": "assets/icons/logo.png",
