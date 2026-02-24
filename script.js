@@ -1808,7 +1808,7 @@ window.addEventListener('DOMContentLoaded', () => {
 // ===============================
 // Office Logistics — JSA Photos (IndexedDB, offline-safe, multi-photo)
 // ===============================
-
+console.log('[JSA] IndexedDB photo module LOADED', Date.now());
 const JSA_DB_NAME = 'pop_jsa_db';
 const JSA_STORE = 'photos';
 
