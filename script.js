@@ -1881,8 +1881,9 @@ document.getElementById('office-jsaphoto-input')?.addEventListener('change', (e)
 
     __saveJsaPhotos(arr);
     __renderJsaPhotos();
-
+if (typeof setStatus === 'function') setStatus('JSA photo saved.');
     alert('SAVED + RENDERED');
+    
   };
 
   reader.readAsDataURL(file);
