@@ -1858,6 +1858,7 @@ function __renderJsaPhotos() {
 // when file selected (debug test)
 document.getElementById('office-jsaphoto-input')?.addEventListener('change', (e) => {
   alert('CHANGE EVENT FIRED');
+  alert('JSA PHOTO CHANGE FIRED');
 
   const file = e.target.files?.[0];
   if (!file) {
@@ -1883,7 +1884,7 @@ document.getElementById('office-jsaphoto-input')?.addEventListener('change', (e)
     __renderJsaPhotos();
 if (typeof setStatus === 'function') setStatus('JSA photo saved.');
     alert('SAVED + RENDERED');
-    
+
   };
 
   reader.readAsDataURL(file);
