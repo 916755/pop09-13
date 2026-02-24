@@ -1,4 +1,4 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
   <link rel="icon" type="image/png" href="assets/icons/logo.png">
@@ -7,544 +7,305 @@
   <meta name="theme-color" content="#0b1020">
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Prince of Prints — job pipeline</title>
-  <meta name="description" content="Current capabilities and planned upgrades for the Prince of Prints blueprint platform." />
+  <title>Prince of Prints</title>
+  <link rel="stylesheet" href="style.css?v=zoom1" />
   <style>
-    :root{
-      --bg:#0b1220;
-      --panel:#0f1b33;
-      --panel2:#0c162a;
-      --text:#e9eefc;
-      --muted:#b9c4e6;
-      --line:rgba(255,255,255,.10);
-      --accent:#4bb3fd;
-      --good:#3ddc97;
-      --warn:#ffd166;
-      --future:#b388ff;
-      --danger:#ff6b6b;
-      --shadow: 0 14px 40px rgba(0,0,0,.35);
+    /* Touch-friendly controls */
+    select, input, button {
+      font-size: 18px !important;
+      padding: 14px 16px !important;
+      min-height: 44px !important;
+      border-radius: 12px !important;
     }
-    *{box-sizing:border-box}
-    body{
-      margin:0;
-      font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Arial, "Apple Color Emoji","Segoe UI Emoji";
-      background: radial-gradient(1100px 700px at 20% -10%, rgba(75,179,253,.25), transparent 55%),
-                  radial-gradient(900px 650px at 95% 10%, rgba(179,136,255,.18), transparent 55%),
-                  linear-gradient(180deg, var(--bg), #070c16 65%, #060a12);
-      color: var(--text);
-    }
-    a{color:var(--accent); text-decoration:none}
-    a:hover{text-decoration:underline}
-    .wrap{max-width:1100px; margin:0 auto; padding:28px 18px 60px}
-    header{
-      display:flex; gap:16px; align-items:center; justify-content:space-between;
-      padding:18px 18px;
-      border:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(15,27,51,.85), rgba(12,22,42,.85));
-      border-radius:18px;
-      box-shadow: var(--shadow);
-      position:sticky; top:10px; backdrop-filter: blur(10px);
-      z-index:2;
-    }
-    .brand{
-      display:flex; align-items:center; gap:12px; min-width:240px;
-    }
-    .logo{
-      width:42px; height:42px; border-radius:12px;
-      background: linear-gradient(135deg, rgba(75,179,253,.95), rgba(179,136,255,.85));
-      box-shadow: 0 10px 30px rgba(75,179,253,.2);
-    }
-    .brand h1{font-size:16px; margin:0; letter-spacing:.2px}
-    .brand p{margin:2px 0 0; font-size:12px; color:var(--muted)}
-    .actions{
-      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
-      justify-content:flex-end;
-    }
-    .chip{
-      display:inline-flex; align-items:center; gap:8px;
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.04);
-      padding:9px 10px;
-      border-radius:999px;
-      font-size:12px;
-      color: var(--muted);
-      user-select:none;
-    }
-    .btn{
-      display:inline-flex; align-items:center; justify-content:center;
-      border:1px solid rgba(75,179,253,.45);
-      background: rgba(75,179,253,.10);
-      color: var(--text);
-      padding:9px 12px;
-      border-radius:12px;
-      font-size:12px;
-      cursor:pointer;
-    }
-    .btn:hover{background: rgba(75,179,253,.16)}
-    .hero{
-      margin-top:18px;
-      border:1px solid var(--line);
-      background: linear-gradient(180deg, rgba(15,27,51,.55), rgba(12,22,42,.55));
-      border-radius:18px;
-      padding:22px 18px;
-      box-shadow: var(--shadow);
-    }
-    .hero h2{
-      margin:0 0 10px;
-      font-size:22px;
-      letter-spacing:.2px;
-    }
-    .hero p{margin:0; color:var(--muted); line-height:1.55}
-    .grid{
-      margin-top:18px;
-      display:grid;
-      grid-template-columns: 1.15fr .85fr;
-      gap:16px;
-    }
-    @media (max-width: 900px){
-      .grid{grid-template-columns:1fr}
-      header{position:static}
-      .brand{min-width:auto}
-    }
-    .card{
-      border:1px solid var(--line);
-      background: rgba(255,255,255,.04);
-      border-radius:18px;
-      box-shadow: var(--shadow);
-      overflow:hidden;
-    }
-    .card .hd{
-      padding:14px 16px;
-      border-bottom:1px solid var(--line);
-      background: rgba(0,0,0,.15);
-      display:flex; align-items:center; justify-content:space-between; gap:12px;
-    }
-    .card .hd h3{margin:0; font-size:14px; letter-spacing:.2px}
-    .card .bd{padding:14px 16px}
-    .tag{
-      display:inline-flex; align-items:center; gap:8px;
-      border:1px solid var(--line);
-      padding:6px 10px;
-      border-radius:999px;
-      font-size:12px;
-      color: var(--muted);
-      background: rgba(255,255,255,.03);
-      white-space:nowrap;
-    }
-    .dot{width:8px; height:8px; border-radius:50%}
-    .dot.good{background:var(--good)}
-    .dot.warn{background:var(--warn)}
-    .dot.future{background:var(--future)}
-    .dot.danger{background:var(--danger)}
-
-    .list{display:grid; gap:10px}
-    .item{
-      display:flex; gap:12px; align-items:flex-start;
-      padding:12px 12px;
-      border:1px solid rgba(255,255,255,.08);
-      background: rgba(0,0,0,.12);
-      border-radius:14px;
-    }
-    .badge{
-      display:inline-flex; align-items:center; justify-content:center;
-      min-width:28px; height:28px;
-      border-radius:10px;
-      border:1px solid rgba(255,255,255,.14);
-      background: rgba(255,255,255,.05);
-      font-weight:700;
-      font-size:12px;
-      color: var(--text);
-      flex:0 0 auto;
-    }
-    .item h4{margin:0; font-size:13px}
-    .item p{margin:4px 0 0; color:var(--muted); font-size:12.5px; line-height:1.45}
-
-    .note{
-      margin-top:14px;
-      padding:12px 12px;
-      border-radius:14px;
-      border:1px dashed rgba(255,255,255,.16);
-      color: var(--muted);
-      background: rgba(0,0,0,.10);
-      font-size:12.5px;
-      line-height:1.55;
-    }
-    footer{
-      margin-top:18px;
-      color: rgba(233,238,252,.60);
-      font-size:12px;
-      text-align:center;
-    }
-    .small{font-size:11.5px; color: rgba(233,238,252,.65)}
-    .kpi{
-      display:grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap:10px;
-      margin-top:14px;
-    }
-    @media (max-width: 560px){
-      .kpi{grid-template-columns:1fr}
-    }
-    .kpi .box{
-      border:1px solid rgba(255,255,255,.10);
-      background: rgba(0,0,0,.12);
-      border-radius:16px;
-      padding:12px 12px;
-    }
-    .kpi .box strong{display:block; font-size:13px}
-    .kpi .box span{display:block; margin-top:4px; color:var(--muted); font-size:12px; line-height:1.4}
   </style>
 </head>
 <body>
+  <div class="page">   <!-- new wrapper starts -->
 
-  <div class="wrap">
-    <header>
-      <div class="brand">
-        <div class="logo" aria-hidden="true"></div>
-        <div>
-          <h1>Prince of Prints</h1>
-          <p>Capabilities roadmap</p>
-        </div>
-      </div>
-
-      <div class="actions">
-      
-<a class="btn" href="/demo.html?v=2">Open job pipeline</a>
-
-        <div class="chip" title="Built & working">
-          <span class="dot good"></span> Live features
-        </div>
-
-        
-        <div class="chip" title="Planned / in progress">
-          <span class="dot future"></span> Intended add-ons
-
-        </div>
-        <button class="btn" id="btnPrint" type="button">Print / Save PDF</button>
-      </div>
+    <header class="app-header">
+      <h1>Prince of Prints</h1>
+      <p class="tagline">Fast blueprint browsing • Keyboard-ready • Zero setup</p>
     </header>
+       <!--step 1 select construction type-->
+    <main class="container">
+      <div class="control">
+    <label for="type-select">Construction type</label>
+<select id="type-select">
+  <option value="" selected>(none / legacy)</option>
+  <option value="residential">Residential</option>
+  <option value="institutional">Institutional</option>
+  <option value="commercial">Commercial</option>
+  <option value="industrial">Industrial</option>
+  <option value="special">Special</option>
+</select>
 
-    <section class="hero">
-      <h2>Blueprint access. Instant. Anywhere.</h2>
-      <p>
-        This page lists what <strong>Prince of Prints</strong> already does today, followed by planned upgrades —
-        focused on real jobsite time savings: from offload to erection, locating tags fast, instant access to cut sheets,
-        and reducing lost time on scrambled paperwork and prints (including damaged, covered, or missing tags).
-      </p>
 
-      <div class="kpi" aria-label="Value highlights">
-  <div class="box">
-    <strong>Receiving (offload)</strong>
-    <span>Replace scrambling through a bill of lading with tag-driven inventory checklist tracking.</span>
   </div>
-  <div class="box">
-    <strong>Erection (field)</strong>
-    <span>Click &amp; Fetch from erection sheets directly into cut/detail sheets.</span>
-  </div>
-  <div class="box">
-    <strong>Progress (status)</strong>
-    <span>Color-coded piece statuses for fast visual coordination across crews.</span>
-  </div>
+<!-- STEP 1: Access Code -->
+<section class="step active" id="step-1" aria-labelledby="step1-title">
+  <h2 id="step1-title" class="visually-hidden">Step 1: Access Code</h2>
+
+  <!-- Office Logistics Button -->
+<div class="control">
+  <button type="button" id="office-logistics-btn">
+    Office Logistics
+  </button>
 </div>
 
-<div class="note" style="margin-top:12px;">
-  Note: Items listed below include both live capabilities and planned enhancements. Real-time job-scoped sync, supervisor-level status control,
-  persistence, and Clear/Undo tools are now fully operational. Upcoming work focuses on expanded receiving workflows, enhanced supervisor permissions,
-  and additional field documentation tools.
-</div>
-
-    
-
-    </section>
-
-    <div class="grid">
-      <!-- LIVE FEATURES -->
-      <section class="card" id="live">
-        <div class="hd">
-          <h3>✅ Features that exist now</h3>
-          <span class="tag"><span class="dot good"></span> live / working</span>
-        </div>
-        <div class="bd">
-          <div class="list">
-
-            <div class="item">
-              <div class="badge">1</div>
-              <div>
-                <h4>Multiple construction type selection</h4>
-                <p>Select the job type / build type to load the correct job index and drawing set.</p>
-
-                <!-- Color Code Legend -->
-                <div class="note" style="margin-top:16px;">
-                  <strong>Color Code Legend (Jobsite Status)</strong>
-                  <div style="display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-top:10px;">
-
-                    <div class="item">
-                      <span class="dot" style="background:#ff77c8;"></span>
-                      <div>
-                        <strong>Pink — Rigged / Ready to Fly</strong>
-                        <div class="small">Piece has been prepared and is ready for lifting.</div>
-                      </div>
-                    </div>
-
-                    <div class="item">
-                      <span class="dot" style="background:#4bb3fd;"></span>
-                      <div>
-                        <strong>Blue — Connected / Erected</strong>
-                        <div class="small">Piece is in place and connected in the structure.</div>
-                      </div>
-                    </div>
-
-                    <div class="item">
-                      <span class="dot" style="background:#3ddc97;"></span>
-                      <div>
-                        <strong>Green — 100% Complete</strong>
-                        <div class="small">All work for this piece is complete.</div>
-                      </div>
-                    </div>
-
-                    <div class="item">
-                      <span class="dot" style="background:#ffffff; border:1px solid #ccc;"></span>
-                      <div>
-                        <strong>Default — Click &amp; Fetch</strong>
-                        <div class="small">No status applied. Tap to jump to details or cut sheets.</div>
-                      </div>
-                    </div>
-
-                  </div>
-                </div>
-                <!-- /Color Code Legend -->
-              </div>
-            </div>
-
-            <div class="item">
-              <div class="badge">2</div>
-              <div>
-                <h4>Security job code access</h4>
-                <p>Job access is tied to a code (example: <em>industrial/24-36N</em>) to keep each set scoped to that job.</p>
-              </div>
-            </div>
-
-<div class="item">
-  <div class="badge">3</div>
-  <div>
-    <h4>Click &amp; Fetch (E-sheet ➜ detail)</h4>
-    <p>Tap a mapped member on an erection sheet and jump straight to the matching detail/cut sheet.</p>
+  <div class="control">
+    <label for="job-input">Access code:</label>
+    <input id="job-input" type="password" placeholder="Enter access code (e.g. 24-36N)" />
   </div>
-</div>
 
-<div class="item">
-  <div class="badge">4</div>
-  <div>
-    <h4>Jump-to-Tag workflow</h4>
-    <p>Type a tag and jump instantly — the fastest way to locate pieces when tags are scratched or covered.</p>
-  </div>
-</div>
-
-<div class="item">
-  <div class="badge">5</div>
-  <div>
-    <h4>Detail sheets + cut sheets navigation</h4>
-    <p>Category and sheet systems make large sets searchable and usable on mobile in the field.</p>
-  </div>
-</div>
-
-<div class="item">
-  <div class="badge">6</div>
-  <div>
-    <h4>Color-coded status system</h4>
-    <p>Piece statuses can be color-marked (rigged/erected/100% etc.) and saved/exported per job.</p>
-  </div>
-</div>
-             
-        <div class="item">
-  <div class="badge">7</div>
-  <div>
-    <h4>Supervisor-level status control</h4>
-    <p>
-      Supervisor lock is live, allowing only authorized supervisors to apply or change status color codes while all other users remain in normal click-and-fetch mode.
-    </p>
-  </div>
-</div>
-
-<div class="item">
-  <div class="badge">8</div>
-  <div>
-    <h4>Real-time job-scoped sync</h4>
-    <p>
-      Status changes update across every device connected to the same job code, and persist across refresh and sessions.
-    </p>
-  </div>
-</div>
-
-<div class="item">
-  <div class="badge">9</div>
-  <div>
-    <h4>Clear + Undo correction tools</h4>
-    <p>
-      Clear returns a piece to default, and Undo restores the last change—designed for fast, field-safe corrections.
-    </p>
-  </div>
-</div>
-
-</div>
-
-      </section>
-
-      <!-- ROADMAP -->
-      <section class="card" id="roadmap">
-        <div class="hd">
-          <h3>🧩 Intended add-ons (next build)</h3>
-          <span class="tag"><span class="dot future"></span> planned</span>
-        </div>
-        <div class="bd">
-          
-            
-
-
-            <div class="item">
-              <div class="badge">D</div>
-              <div>
-                <h4>Notes category (job-specific)</h4>
-                <p>Add a Notes section for delivery exceptions, RFIs, foreman notes, and daily coordination.</p>
-              </div>
-            </div>
-
-            <div class="item">
-              <div class="badge">E</div>
-              <div>
-                <h4>Safety category (national standards)</h4>
-                <p>Short, specific safety reminders (P.P.E., falls, suspended loads, lift plans, wind limits, exclusions, “do not rig” notes).</p>
-              </div>
-            </div>
-
-          </div>
-</section>
-
-<!-- Founder Personal Note -->
-<section class="card" style="margin-top:18px;">
-  <div class="hd">
-    <h3>A Personal Note from the Founder</h3>
-  </div>
-  <div class="bd">
-
-    <p>
-      With over 40 years of combined hands-on construction experience, our team has seen how much time is lost simply trying to locate steel 
-      that’s missing tags, mis-marked, or buried somewhere on site. These delays rarely get tracked, but they add up quickly. 
-      Just five ironworkers waiting 15 minutes for a single piece can quietly cost more than a full man-hour of productivity.
-    </p>
-
-    <p>
-      If the rigging foreman is called away, work does not stop. By color-coding upcoming pieces pink, a supervisor can instantly direct the 
-      ground crew’s next rigging sequence from anywhere. After sending a piece up for connection, the crew simply refreshes their device, 
-      and the next pink-marked members clearly indicate what to rig next.
-    </p>
-
-    <p>
-      With Prince of Prints, a rigger can click a pink-marked piece and instantly access the corresponding cut sheet through the click-and-fetch feature. 
-      This provides full length, web height, weight, connection details, and all associated notes. For example, if the piece is a 30-foot W12x40 beam, 
-      the rigger can quickly identify matching beams in the laydown yard and verify them even when tags are missing, damaged, or unreadable.
-    </p>
-
-    <p>
-      This application grew directly out of real field experience — including the realities of age, injury, and the need to continue contributing 
-      knowledge after hands-on work is no longer possible. At a minimum, it drastically reduces unnecessary trips back to the office or print shack, 
-      something anyone who has worked a muddy jobsite understands immediately.
-    </p>
-
-    <p>
-      When steel begins arriving and trucks stack up waiting to be off-loaded, a true inventory check almost never happens. Verifying every piece 
-      against a bill of lading or expected list simply isn’t realistic under real jobsite pressure. Material gets staged imperfectly, and problems 
-      surface later when time is most critical.
-    </p>
-
-    <p>
-      The app is intentionally straightforward. Enter a tag ID and it immediately jumps to that piece in the <strong>All</strong> list. Tap it — checked. 
-      Fast and simple. An expediter or forklift operator can stage material efficiently using nothing more than a tablet and a list of tags. 
-      If a piece cannot be located, it can be marked <strong>yellow</strong> directly on the erection drawing.
-    </p>
-
-    <p>
-      If a beam is sent up and turns out to be incorrect, locating the right piece can become a long and costly search. With instant access to 
-      cut sheet information, the crew immediately has the exact description and specifications needed to identify the correct member without walking, 
-      guessing, or losing valuable time.
-    </p>
-
-    <p>
-      Today, the application runs reliably on mobile phones and tablets and supports the core field workflow. Because every job’s print set is 
-      organized differently, the focus has been on practical automation — tools that generate indexes and streamline setup, while mapping remains 
-      a manual process for now.
-    </p>
-
-    <p>
-      Jobs can be configured for either internet access or fully offline use. Some crews prefer prints hosted online, 
-      while others require everything stored locally on a jobsite device or shared network. 
-      Prince of Prints supports both approaches, allowing each job to operate within its existing workflow.
-    </p>
-    <p>
-  A recently added feature—requested by field crews—is the <strong>Office Logistics</strong> section. It is organized into two access levels:
-  a supervisor-locked area and a crew-facing area. Crew members can complete their individual daily logs and inspection sheets directly in the app,
-  while supervisors review and sign using typed signature text.
-</p>
-
-<p>
-  The supervisor-controlled section includes time sheets, rework documentation, modification forms, back-charge logs, and personnel performance evaluations.
-  Job Safety Analyses (JSAs) can also be completed within the system, with each crew member signing electronically on the supervisor’s mobile device during
-  the required safety meeting to review the day’s planned work steps and safety considerations.
-</p>
-
-<p>
-  Completed records are delivered instantly to the office, eliminating unnecessary trips to the trailer and ensuring documentation is available in real time.
-</p>
-
-
-
-    <div class="note" style="margin-top:12px;">
-      <ul style="margin:10px 0 0; padding-left:18px; color:var(--muted); line-height:1.55;">
-        <li><strong>Mobile usability refinement</strong> — ongoing improvements for speed, touch targets, sunlight readability, and glove-friendly interaction.</li>
-        <li><strong>Receiving &amp; inventory workflows</strong> — optional checklist-based offload verification tied directly to tags.</li>
-        <li><strong>Job-scoped synchronization</strong> — consistent status visibility across devices using the same job code.</li>
-        <li><strong>Supervisor locks &amp; permissions</strong> — role-based controls for status color management.</li>
-        <li><strong>Automation tools</strong> — faster generation of indexes, mappings, and job setup artifacts.</li>
-        <li><strong>Hardening &amp; reliability</strong> — continued testing and performance tuning for real jobsite conditions.</li>
-      </ul>
+    <!-- Supervisor Lock (front-page) -->
+  <div class="control" id="sup-panel" style="margin-top:10px;">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap;">
+      <strong>Supervisor lock:</strong>
+      <span id="sup-state" style="opacity:.85;">Locked</span>
     </div>
 
-    <p style="margin-top:12px;">
-      Our goal is simple: reduce office traffic, reduce wasted man-hours, and give crews a faster way to verify what is on site and what is missing.
-    </p>
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">
+      <button type="button" id="sup-unlock-btn">Unlock / Set PIN</button>
+      <button type="button" id="sup-lock-btn">Lock</button>
+      <button type="button" id="sup-reset-btn">Change PIN</button>
+    </div>
 
-    <p class="small" style="margin-top:10px;">
-     <p class="small" style="margin-top:10px;">
-       We offer trial access so your team can evaluate Prince of Prints under real field conditions and determine how effectively it integrates with your existing workflow.
-       To ensure proper organization within the Pipeline, construction drawings must be submitted in advance of intended field use to allow adequate time for structured processing.
+    <div style="margin-top:8px; font-size:13px; opacity:.85; line-height:1.3;">
+      Unlock once at the start. While locked, status colors are blocked. Navigation never asks for a PIN.
+    </div>
+  </div>
 
-       Prince of Prints does not alter, calculate, redesign, modify, or replace original construction documents in any manner. The platform functions solely as an organizational and field-navigation tool that operates in direct correlation with official on-site blueprints. It is intended strictly as an operational aid and must never be considered a substitute for original construction documents.
-
-       For processing inquiries or general information, contact:
-    <strong>KerryFickel@princeofprints.info</strong><br><br>
-
-       Woody Kline — Sales Representative & Field Consultant<br>
-       Phone: 307-670-3173<br>
-       Email: woodykline644@gmail.com
-     </p>
-    </p>
-
+  <div class="step-nav">
+    <button type="button" class="back-btn" disabled>Back</button>
+    <button type="button" class="next-btn" data-go="2" disabled>Next</button>
   </div>
 </section>
 
-    </section>
+<!-- STEP 2: Category -->
+<section class="step" id="step-2" aria-labelledby="step2-title">
+  <h2 id="step2-title" class="visually-hidden">Step 2: Select Category</h2>
 
-    <footer>
-      <div class="small">
-        © <span id="yr"></span> Prince of Prints — job pipeline platform. All rights reserved.
-      </div>
-    </footer>
+  <div class="control">
+    <label for="category-select">Category</label>
+    <select id="category-select"></select>
   </div>
 
-  <script>
-    document.getElementById('yr').textContent = new Date().getFullYear();
-    document.getElementById('btnPrint').addEventListener('click', () => window.print());
-  </script>
+  <button id="open-inventory-step2" type="button" style="margin-top:10px;">
+    Offload Inventory
+  </button>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" data-go="1">Back</button>
+    <button type="button" class="next-btn" data-go="3" disabled>Next</button>
+  </div>
+</section>
+
+<!-- STEP: Office Logistics -->
+<section class="step" id="step-office" aria-labelledby="office-title">
+  <h2 id="office-title">Office Logistics</h2>
+
+
+<div class="control" style="font-size:14px; opacity:.85;">
+  <div><strong>Job:</strong> <span id="office-job-code">(not set)</span></div>
+  <div><strong>Docs sync:</strong> Realtime (Supabase)</div>
+</div>
+
+<div id="office-dailylog-panel" class="office-card" style="display:none;">
+  <h3>Daily Log (hands)</h3>
+<div class="control">
+  <label for="office-log-date">Log Date</label>
+  <input id="office-log-date" type="date" />
+</div>
+  <div class="control">
+  <label for="office-work-performed">Work Performed</label>
+  <textarea id="office-work-performed" rows="6" placeholder="What work was completed today? (Sheets worked, progress, milestones)"></textarea>
+</div>
+
+<div class="control">
+  <label for="office-issues-impacts">Issues / Impacts</label>
+  <textarea id="office-issues-impacts" rows="6" placeholder="Delays, breakdowns, repairs, missing material, backcharge notes, safety events…"></textarea>
+</div>
+
+  <div class="step-nav" style="gap:10px;">
+    <button type="button" id="office-daily-log-save">Save</button>
+    <button type="button" id="office-daily-log-close">Close</button>
+  </div>
+
+  <p class="muted" id="office-daily-log-meta"></p>
+</div>
+
+<div class="control" style="display:flex; gap:10px; flex-wrap:wrap;">
+  <button type="button" id="office-open-dailylog-btn">Daily Log / Notes</button>
+  <button type="button" id="office-jsaphoto-add-btn">JSA Photos</button>
+  <button type="button" id="office-open-inspection-btn">Daily Equipment Inspection</button>
+  <button type="button" id="office-open-timesheet-btn">Time Sheet (Supervisor)</button>
+  <button type="button" id="office-open-equipmenthours-btn">Equipment Hours (Supervisor)</button>
+</div>
+
+<input
+  type="file"
+  id="office-jsaphoto-input"
+  accept="image/*"
+  capture="environment"
+ style="position:fixed; left:-9999px; top:auto; width:1px; height:1px; opacity:0;",/>
+  <div class="control">
+    <button type="button" id="office-back-btn">Back to Categories</button>
+  </div>
+</section>
+
+
+<!-- Jump controls -->
+<div class="jump-row" style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-block:8px;">
+  <label for="jump-input">Jump to tag:</label>
+  <input id="jump-input" type="text" placeholder="e.g., 133B or P271" style="flex:1; min-width:180px;">
+  <button id="jump-btn" type="button">Jump</button>
+</div>
+
+<!-- STEP 3: Sheet + Filter -->
+<section class="step" id="step-3" aria-labelledby="step3-title">
+  <h2 id="step3-title" class="visually-hidden">Step 3: Select Sheet</h2>
+
+  <div class="control">
+    <label for="sheet-select">Sheet</label>
+    <select id="sheet-select"></select>
+  </div>
+
+  <div class="control">
+    <label for="filter-input">Filter (type to narrow)</label>
+    <input id="filter-input" type="text" placeholder="e.g. B-232, ref-E8, detail, C-12" />
+  </div>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" data-go="2">Back</button>
+    <button type="button" class="next-btn" data-go="4" disabled>Next</button>
+  </div>
+</section>
+
+<!-- STEP 4: Image viewer -->
+<section class="step" id="step-4" aria-labelledby="step4-title">
+  <h2 id="step4-title" class="visually-hidden">Step 4: Image Viewer</h2>
+
+  <section class="viewer">
+
+    <!-- Status toolbar: Default / Yellow / Pink / Blue / Green -->
+    <div class="status-toolbar">
+      <span class="status-label">Piece status:</span>
+
+      <button type="button"
+              class="status-btn status-none"
+              data-status="none">
+        Normal
+      </button>
+
+      <button type="button"
+        class="status-btn status-clear"
+        data-status="clear">
+        clear
+      </button>
+
+      <button type="button"
+              class="status-btn status-missing"
+              data-status="yellow">
+        Not located
+      </button>
+
+      <button type="button"
+              class="status-btn status-rigged"
+              data-status="pink">
+        Rigged
+      </button>
+
+      <button type="button"
+              class="status-btn status-erected"
+              data-status="blue">
+        Erected
+      </button>
+
+      <button type="button"
+              class="status-btn status-complete"
+              data-status="green">
+        100%
+      </button>
+
+      <button id="status-save-btn" type="button">
+              Save status JSON
+      </button>
+      <button id="undo-btn" type="button" title="Undo last status change">
+              Undo
+      </button>
+      
+      <label style="display:inline-flex; align-items:center; gap:8px; margin-left:10px;">
+      <input type="checkbox" id="inventory-mode" />
+        Inventory
+      </label>
+
+      <button id="open-inventory" type="button" style="margin-left:10px;">
+        Offload Inventory
+      </button>
+
+
+    </div>
+
+<div class="zoom-toolbar">
+  <button id="zoom-out" type="button" title="Zoom out">−</button>
+  <button id="zoom-reset" type="button" title="Reset zoom">100%</button>
+  <button id="zoom-in" type="button" title="Zoom in">+</button>
+</div>
+
+<div id="zoom-viewport">
+  <div id="zoom-stage">
+    <div id="image-wrapper">
+      <img id="sheet-image" alt="Blueprint" />
+      <div id="map-layer"></div>
+    </div>
+  </div>
+</div>
+
+
+    <div class="control buttons">
+      <button id="prev-btn" title="Previous (←)">Prev</button>
+      <button id="next-btn" title="Next (→)">Next</button>
+    </div>
+
+  </section>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" data-go="3">Back</button>
+  </div>
+</section>
+<!-- STEP: Offload Inventory -->
+<section class="step" id="step-inventory">
+
+  <div class="control">
+    <h3>Offload Inventory</h3>
+    <div style="opacity:.8;">
+      Check pieces as they are unloaded.
+    </div>
+  </div>
+
+  <div class="control">
+    <div id="inv-list"></div>
+  </div>
+
+  <div class="step-nav">
+    <button type="button" class="back-btn" data-go="2">Back</button>
+  </div>
+
+</section>
+</main>
+
+
+    <footer class="app-footer">
+      <span id="status-text">Ready.</span>
+    </footer>
+
+  </div>                <!-- wrapper ends -->
+  
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./script.js?v=zoom3"></script>
+
 </body>
-</html>
+</html>   
+
+
 
