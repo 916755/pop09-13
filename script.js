@@ -1805,89 +1805,130 @@ window.addEventListener('DOMContentLoaded', () => {
     el.value = new Date().toISOString().slice(0, 10);
   }
 });
-
 // ===============================
-// Office Logistics — JSA Photo (Option A) — open camera/file picker
-// ===============================
-document.getElementById('office-jsaphoto-add-btn')?.addEventListener('click', () => {
-  document.getElementById('office-jsaphoto-input')?.click();
-});
-// ===============================
-// Office Logistics — JSA Photo storage (local)
+// Office Logistics — JSA Photos (IndexedDB, offline-safe, multi-photo)
 // ===============================
 
-function __jsaPhotoKey() {
-  const job = window.currentJob?.id || 'nojob';
-  return `pop_jsa_photos_${job}`;
+const JSA_DB_NAME = 'pop_jsa_db';
+const JSA_STORE = 'photos';
+
+function __jsaJobKey() {
+  return (window.currentJob?.id || 'nojob').toString();
 }
 
-function __loadJsaPhotos() {
-  try {
-    return JSON.parse(localStorage.getItem(__jsaPhotoKey()) || '[]');
-  } catch {
-    return [];
-  }
+function __openJsaDb() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(JSA_DB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(JSA_STORE)) {
+        const store = db.createObjectStore(JSA_STORE, { keyPath: 'id' });
+        store.createIndex('by_job', 'job', { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
 }
 
-function __saveJsaPhotos(arr) {
-  localStorage.setItem(__jsaPhotoKey(), JSON.stringify(arr || []));
+async function __jsaAddPhoto({ blob, name }) {
+  const db = await __openJsaDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(JSA_STORE, 'readwrite');
+    const store = tx.objectStore(JSA_STORE);
+
+    store.add({
+      id: crypto.randomUUID(),
+      job: __jsaJobKey(),
+      name: name || 'photo',
+      saved_at: Date.now(),
+      blob
+    });
+
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
 }
 
-function __renderJsaPhotos() {
+async function __jsaListPhotos() {
+  const db = await __openJsaDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(JSA_STORE, 'readonly');
+    const store = tx.objectStore(JSA_STORE);
+    const idx = store.index('by_job');
+
+    const job = __jsaJobKey();
+    const out = [];
+
+    const req = idx.openCursor(IDBKeyRange.only(job));
+    req.onsuccess = () => {
+      const cur = req.result;
+      if (!cur) {
+        out.sort((a, b) => b.saved_at - a.saved_at);
+        resolve(out);
+        return;
+      }
+      out.push(cur.value);
+      cur.continue();
+    };
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function __renderJsaPhotos() {
   const container = document.getElementById('office-jsaphoto-list');
   if (!container) return;
 
-  const photos = __loadJsaPhotos();
+  const photos = await __jsaListPhotos();
+
   if (!photos.length) {
     container.innerHTML = '<div class="muted">(no JSA photos yet)</div>';
     return;
   }
 
-  container.innerHTML = photos
-    .map(p => `
-      <div style="margin-bottom:10px;">
-        <div style="font-size:13px; opacity:.8;">
-          ${new Date(p.saved_at).toLocaleString()}
-        </div>
-        <img src="${p.data}" style="max-width:100%; border-radius:8px; margin-top:5px;" />
+  container.innerHTML = photos.map(p => {
+    const when = new Date(p.saved_at).toLocaleString();
+    const url = URL.createObjectURL(p.blob);
+    return `
+      <div style="margin-bottom:12px; border:1px solid rgba(255,255,255,.08); padding:10px; border-radius:10px;">
+        <div style="font-size:13px; opacity:.8;">${when}</div>
+        <div style="font-size:13px; opacity:.8; margin-top:6px;">${p.name || 'photo'}</div>
+        <img src="${url}" style="max-width:100%; border-radius:8px; margin-top:8px;"
+             onload="URL.revokeObjectURL(this.src)" />
       </div>
-    `)
-    .join('');
+    `;
+  }).join('');
 }
 
-// when file selected (debug test)
-document.getElementById('office-jsaphoto-input')?.addEventListener('change', (e) => {
-  alert('CHANGE EVENT FIRED');
-  alert('JSA PHOTO CHANGE FIRED');
-
-  const file = e.target.files?.[0];
-  if (!file) {
-    alert('NO FILE RECEIVED');
-    return;
-  }
-
-  alert('FILE RECEIVED');
-
-  e.target.value = ''; // reset input
-
-  const reader = new FileReader();
-  reader.onload = function(evt) {
-    alert('READER LOADED');
-
-    const arr = __loadJsaPhotos();
-    arr.unshift({
-      data: evt.target.result,
-      saved_at: new Date().toISOString()
-    });
-
-    __saveJsaPhotos(arr);
-    __renderJsaPhotos();
-if (typeof setStatus === 'function') setStatus('JSA photo saved.');
-    alert('SAVED + RENDERED');
-
-  };
-
-  reader.readAsDataURL(file);
+// Open picker button (works reliably on mobile)
+document.getElementById('office-jsaphoto-add-btn')?.addEventListener('click', () => {
+  document.getElementById('office-jsaphoto-input')?.click();
 });
+
+// MULTIPLE photos supported
+document.getElementById('office-jsaphoto-input')?.addEventListener('change', async (e) => {
+  const files = Array.from(e.target.files || []);
+  e.target.value = ''; // allow choosing same file again
+
+  if (!files.length) return;
+
+  try {
+    for (const f of files) {
+      await __jsaAddPhoto({ blob: f, name: f.name });
+    }
+    await __renderJsaPhotos();
+    window.setStatus?.(`Saved ${files.length} JSA photo${files.length === 1 ? '' : 's'}.`);
+  } catch (err) {
+    console.error('JSA save failed', err);
+    alert('JSA save failed — open console for details.');
+  }
+});
+
+// Render on load
+document.addEventListener('DOMContentLoaded', () => {
+  __renderJsaPhotos().catch(console.warn);
+});
+
+
 
 
