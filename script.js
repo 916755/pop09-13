@@ -1855,20 +1855,34 @@ function __renderJsaPhotos() {
     .join('');
 }
 
-// when file selected
+// when file selected (debug test)
 document.getElementById('office-jsaphoto-input')?.addEventListener('change', (e) => {
+  alert('CHANGE EVENT FIRED');
+
   const file = e.target.files?.[0];
-  if (!file) return;
+  if (!file) {
+    alert('NO FILE RECEIVED');
+    return;
+  }
+
+  alert('FILE RECEIVED');
+
+  e.target.value = ''; // reset input
 
   const reader = new FileReader();
   reader.onload = function(evt) {
+    alert('READER LOADED');
+
     const arr = __loadJsaPhotos();
     arr.unshift({
       data: evt.target.result,
       saved_at: new Date().toISOString()
     });
+
     __saveJsaPhotos(arr);
     __renderJsaPhotos();
+
+    alert('SAVED + RENDERED');
   };
 
   reader.readAsDataURL(file);
