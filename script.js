@@ -1570,23 +1570,36 @@ document.getElementById('office-daily-log-save')?.addEventListener('click', asyn
       return;
     }
 
-    const text = document.getElementById('office-daily-log').value || '';
-    const today = new Date().toISOString().slice(0, 10);
+  const work = document.getElementById('office-work-performed')?.value.trim() || '';
+const issues = document.getElementById('office-issues-impacts')?.value.trim() || '';
 
-    const { error } = await sb
-      .from('daily_logs')
-      .upsert({
-        job_code: jobCode,
-        log_date: today,
-        appers: text,
-        updated_at: new Date().toISOString()
-      }, { onConflict: 'job_code,log_date' });
+if (!work && !issues) {
+  alert("Nothing to save");
+  return;
+}
 
-    if (error) throw error;
+const chosen = document.getElementById('office-log-date')?.value;
+const today = chosen || new Date().toISOString().slice(0, 10);
+const combinedLog =
+  "WORK PERFORMED:\n" + work +
+  "\n\nISSUES / IMPACTS:\n" + issues;
 
-    document.getElementById('office-daily-log-meta').textContent =
-      "Saved at " + new Date().toLocaleTimeString();
+const { error } = await sb
+  .from('daily_logs')
+  .upsert({
+    job_code: jobCode,
+    log_date: today,
+    appers: combinedLog,
+    updated_at: new Date().toISOString()
+  }, { onConflict: 'job_code,log_date' });
 
+if (error) throw error;
+
+document.getElementById('office-daily-log-meta').textContent =
+  "Saved at " + new Date().toLocaleTimeString();
+
+document.getElementById('office-work-performed').value = '';
+document.getElementById('office-issues-impacts').value = '';
   } catch (err) {
     console.error(err);
     alert("Save failed — see console");
@@ -1597,6 +1610,40 @@ document.getElementById('office-daily-log-save')?.addEventListener('click', asyn
 // ===============================
 document.getElementById('office-open-dailylog-btn')?.addEventListener('click', () => {
   document.getElementById('office-dailylog-panel').style.display = 'block';
+// Load today's saved log
+(async () => {
+  try {
+    const sb = window.supabaseClient;
+    const jobCode = window.currentJob?.id || '';
+    if (!sb || !jobCode) return;
+
+    const chosen = document.getElementById('office-log-date')?.value;
+const today = chosen || new Date().toISOString().slice(0, 10);
+    const { data, error } = await sb
+      .from('daily_logs')
+      .select('appers')
+      .eq('job_code', jobCode)
+      .eq('log_date', today)
+      .single();
+
+    if (error || !data) return;
+
+    const text = data.appers || '';
+
+    // Split back into the two sections
+    const parts = text.split("ISSUES / IMPACTS:");
+
+    document.getElementById('office-work-performed').value =
+      parts[0]?.replace("WORK PERFORMED:\n", "").trim() || '';
+
+    document.getElementById('office-issues-impacts').value =
+      parts[1]?.trim() || '';
+
+  } catch (err) {
+    console.error("Load log failed", err);
+  }
+})();
+
 });
 
 document.getElementById('office-daily-log-close')?.addEventListener('click', () => {
@@ -1751,3 +1798,80 @@ document.addEventListener('click', (ev) => {
 
   if (typeof setStatus === 'function') setStatus('Offload Inventory');
 });
+// Auto-fill today's date in Daily Field Log
+window.addEventListener('DOMContentLoaded', () => {
+  const el = document.getElementById('office-log-date');
+  if (el) {
+    el.value = new Date().toISOString().slice(0, 10);
+  }
+});
+
+// ===============================
+// Office Logistics — JSA Photo (Option A) — open camera/file picker
+// ===============================
+document.getElementById('office-jsaphoto-add-btn')?.addEventListener('click', () => {
+  document.getElementById('office-jsaphoto-input')?.click();
+});
+// ===============================
+// Office Logistics — JSA Photo storage (local)
+// ===============================
+
+function __jsaPhotoKey() {
+  const job = window.currentJob?.id || 'nojob';
+  return `pop_jsa_photos_${job}`;
+}
+
+function __loadJsaPhotos() {
+  try {
+    return JSON.parse(localStorage.getItem(__jsaPhotoKey()) || '[]');
+  } catch {
+    return [];
+  }
+}
+
+function __saveJsaPhotos(arr) {
+  localStorage.setItem(__jsaPhotoKey(), JSON.stringify(arr || []));
+}
+
+function __renderJsaPhotos() {
+  const container = document.getElementById('office-jsaphoto-list');
+  if (!container) return;
+
+  const photos = __loadJsaPhotos();
+  if (!photos.length) {
+    container.innerHTML = '<div class="muted">(no JSA photos yet)</div>';
+    return;
+  }
+
+  container.innerHTML = photos
+    .map(p => `
+      <div style="margin-bottom:10px;">
+        <div style="font-size:13px; opacity:.8;">
+          ${new Date(p.saved_at).toLocaleString()}
+        </div>
+        <img src="${p.data}" style="max-width:100%; border-radius:8px; margin-top:5px;" />
+      </div>
+    `)
+    .join('');
+}
+
+// when file selected
+document.getElementById('office-jsaphoto-input')?.addEventListener('change', (e) => {
+  const file = e.target.files?.[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = function(evt) {
+    const arr = __loadJsaPhotos();
+    arr.unshift({
+      data: evt.target.result,
+      saved_at: new Date().toISOString()
+    });
+    __saveJsaPhotos(arr);
+    __renderJsaPhotos();
+  };
+
+  reader.readAsDataURL(file);
+});
+
+
