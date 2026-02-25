@@ -24,6 +24,194 @@ window.supabaseClient = window.supabaseClient || window.supabase.createClient(
 
 console.log("Supabase initialized");
 // ===============================
+// JSA Photos — config + helpers
+// ===============================
+const JSA_PHOTO_BUCKET = "jsa-photos";
+
+function __jsaJobId() {
+  // Use whatever your app already stores as "current job".
+  // Fallbacks keep it from crashing.
+  return (window.currentJob?.id || window.currentJob?.job_id || window.currentJob?.code || "").toString().trim();
+}
+
+function __jsaSafeSegment(s) {
+  return (s || "")
+    .toString()
+    .trim()
+    .replace(/[^\w\-]+/g, "_")
+    .slice(0, 80);
+}
+// ===============================
+// JSA Photos — offline queue (IndexedDB)
+// ===============================
+const __JSA_DB_NAME = "pop_jsa_photos";
+const __JSA_DB_VER = 1;
+let __jsaDbPromise = null;
+
+function __jsaDb() {
+  if (__jsaDbPromise) return __jsaDbPromise;
+  __jsaDbPromise = new Promise((resolve, reject) => {
+    const req = indexedDB.open(__JSA_DB_NAME, __JSA_DB_VER);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains("queue")) {
+        const store = db.createObjectStore("queue", { keyPath: "id" });
+        store.createIndex("status", "status", { unique: false });
+        store.createIndex("created_at", "created_at", { unique: false });
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+  return __jsaDbPromise;
+}
+
+async function __jsaQueuePut(item) {
+  const db = await __jsaDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("queue", "readwrite");
+    tx.objectStore("queue").put(item);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+
+async function __jsaQueueGetAll() {
+  const db = await __jsaDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("queue", "readonly");
+    const req = tx.objectStore("queue").getAll();
+    req.onsuccess = () => resolve(req.result || []);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function __jsaQueueDelete(id) {
+  const db = await __jsaDb();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction("queue", "readwrite");
+    tx.objectStore("queue").delete(id);
+    tx.oncomplete = () => resolve(true);
+    tx.onerror = () => reject(tx.error);
+  });
+}
+// ===============================
+// JSA Photos — enqueue
+// ===============================
+function __jsaMakeId() {
+  // good enough unique id for local queue
+  return `jsa_${Date.now()}_${Math.random().toString(16).slice(2)}`;
+}
+
+async function __jsaEnqueueFile(file, { task = "", note = "" } = {}) {
+  const job_id = __jsaJobId();
+  const id = __jsaMakeId();
+
+  // Store the file as base64 so it survives reload/offline
+  const dataUrl = await new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = () => reject(r.error);
+    r.readAsDataURL(file);
+  });
+
+  const item = {
+    id,
+    created_at: new Date().toISOString(),
+    status: "pending",          // pending | uploading | uploaded | failed
+    job_id,
+    task: (task || "").toString(),
+    created_by: (window.currentUserName || "").toString(), // optional
+    note: (note || "").toString(),
+    filename: file.name || "photo.jpg",
+    mime: file.type || "image/jpeg",
+    size: file.size || 0,
+    dataUrl,                    // local copy
+    photo_path: null,
+    thumb_path: null,
+    err: null
+  };
+
+  await __jsaQueuePut(item);
+  return item;
+}
+// ===============================
+// JSA Photos — upload worker
+// ===============================
+async function __jsaUploadOne(item) {
+  const sb = window.supabaseClient;
+  if (!sb) throw new Error("Supabase client missing");
+
+  // Mark uploading
+  item.status = "uploading";
+  item.err = null;
+  await __jsaQueuePut(item);
+
+  // Decode base64 dataUrl -> Blob
+  const blob = await (await fetch(item.dataUrl)).blob();
+
+  // Build storage path: jobs/<job>/jsa/<task>/<id>_<filename>
+  const jobSeg = __jsaSafeSegment(item.job_id || "unknown_job");
+  const taskSeg = __jsaSafeSegment(item.task || "general");
+  const nameSeg = __jsaSafeSegment(item.filename || "photo.jpg");
+  const storagePath = `jobs/${jobSeg}/jsa/${taskSeg}/${item.id}_${nameSeg}`;
+
+  // Upload to Storage
+  const up = await sb.storage
+    .from(JSA_PHOTO_BUCKET)
+    .upload(storagePath, blob, { contentType: item.mime, upsert: false });
+
+  if (up.error) throw up.error;
+
+  // Insert DB row
+  const ins = await sb
+    .from("jsa_photos")
+    .insert([{
+      job_id: item.job_id || null,
+      task: item.task || null,
+      created_by: item.created_by || null,
+      photo_path: storagePath,
+      thumb_path: null,
+      note: item.note || null
+    }]);
+
+  if (ins.error) throw ins.error;
+
+  // Mark uploaded + optionally clear local blob to save space
+  item.status = "uploaded";
+  item.photo_path = storagePath;
+  item.err = null;
+  // keep dataUrl for now (viewer can use it offline); later we can prune
+  await __jsaQueuePut(item);
+
+  return item;
+}
+
+async function __jsaProcessQueueOnce() {
+  // only run if online
+  if (!navigator.onLine) return;
+
+  const all = await __jsaQueueGetAll();
+  const pending = all.filter(x => x && (x.status === "pending" || x.status === "failed"));
+
+  for (const item of pending) {
+    try {
+      await __jsaUploadOne(item);
+    } catch (e) {
+      item.status = "failed";
+      item.err = (e && e.message) ? e.message : String(e);
+      await __jsaQueuePut(item);
+      // keep going, don’t block the rest
+    }
+  }
+}
+
+// Auto-run when connection returns
+window.addEventListener("online", () => {
+  __jsaProcessQueueOnce().catch(() => {});
+});
+
+// ===============================
 // REALTIME: job_logs subscription (cross-device updates)
 // ===============================
 window.__jobLogsSub = window.__jobLogsSub || null;
@@ -1912,16 +2100,23 @@ document.getElementById('office-jsaphoto-input')?.addEventListener('change', asy
 
   if (!files.length) return;
 
-  try {
-    for (const f of files) {
-      await __jsaAddPhoto({ blob: f, name: f.name });
-    }
-    await __renderJsaPhotos();
-    window.setStatus?.(`Saved ${files.length} JSA photo${files.length === 1 ? '' : 's'}.`);
-  } catch (err) {
-    console.error('JSA save failed', err);
-    alert('JSA save failed — open console for details.');
+  // Pull task (safe fallback)
+  const task =
+    document.getElementById("jsa-task")?.value ||
+    document.getElementById("jobtask")?.value ||
+    "";
+
+  const note =
+    document.getElementById("jsa-note")?.value ||
+    "";
+
+  // Save each file locally
+  for (const file of files) {
+    await __jsaEnqueueFile(file, { task, note });
   }
+
+  // Try upload immediately if online
+  __jsaProcessQueueOnce();
 });
 
 // Render on load
