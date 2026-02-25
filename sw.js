@@ -1,3 +1,8 @@
+const SW_VERSION = '2026-02-24-01';
+const CACHE_NAME = `pop-${SW_VERSION}`;
+self.addEventListener('install', (event) => {
+  self.skipWaiting();
+});
 // sw.js — Prince of Prints offline boot (v1)
 const CACHE = "pop-shell-v1";
 
