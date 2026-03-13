@@ -1018,16 +1018,11 @@ console.log('[SUP] isUnlocked?', !!window.popSupervisor?.isUnlocked?.(), 'reques
     window.popSupervisor?.updateToolbarDisabledState?.();
 
 })();
-
-// ---------- Type selector ----------
 (() => {
-  const TYPE_LABELS = {
-    residential: 'Residential',
-    institutional: 'Institutional',
-    commercial: 'Commercial',
-    industrial: 'Industrial',
-    special: 'Special'
-  };
+//job type selector
+const TYPE_LABELS = {
+  industrial: "Steel Erection"
+};
 
   function initTypeSelector() {
     const sel = document.getElementById('type-select');
