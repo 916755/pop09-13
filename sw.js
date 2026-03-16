@@ -1,4 +1,4 @@
-const SW_VERSION = '2026-03-16-01';
+const SW_VERSION = '2026-03-16-02';
 const CACHE_NAME = `pop-${SW_VERSION}`;
 
 // sw.js — Prince of Prints offline boot (v1)

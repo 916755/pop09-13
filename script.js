@@ -3,7 +3,7 @@
 // ===============================
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
- navigator.serviceWorker.register("./sw.js?v=2026-03-16-01").catch(err => {      console.log("[SW] register failed", err);
+ navigator.serviceWorker.register("./sw.js?v=2026-03-16-02").catch(err => {      console.log("[SW] register failed", err);
     });
   });
 }
@@ -637,22 +637,24 @@ if (els.categorySelect && !Array.from(els.categorySelect.options).some(o => o.va
         return;
       }
 
-      img.src = buildSrc(window.currentJob.id, it);
+      const label = it.label || it.name || it.path || '';
+      const cat = els.categorySelect?.value || '';
+
       img.setAttribute('draggable', 'false');
       img.style.userSelect = 'none';
       img.style.webkitUserDrag = 'none';
       img.addEventListener('dragstart', e => e.preventDefault(), { passive: false });
       img.onerror = () => console.warn('IMAGE LOAD FAILED:', img.src);
 
-      const label = it.label || it.name || it.path || '';
-      const cat = els.categorySelect?.value || '';
-      if (cap) {
-        cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
-      }
-      setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);
+      img.onload = () => {
+        if (cap) {
+          cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
+        }
+        setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);
+        setCurrentSheetLabel(label, it);
+      };
 
-      // ✅ FIX: pass item too (so we can load item.map for member details)
-      setCurrentSheetLabel(label, it);
+      img.src = buildSrc(window.currentJob.id, it);
 
       if (els.sheetSelect) els.sheetSelect.value = it.path;
     };
