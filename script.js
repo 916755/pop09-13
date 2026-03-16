@@ -3,8 +3,7 @@
 // ===============================
 if ("serviceWorker" in navigator) {
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("./sw.js").catch(err => {
-      console.log("[SW] register failed", err);
+ navigator.serviceWorker.register("./sw.js?v=2026-03-16-01").catch(err => {      console.log("[SW] register failed", err);
     });
   });
 }
