@@ -592,93 +592,120 @@ if (els.categorySelect && !Array.from(els.categorySelect.options).some(o => o.va
     window._allItems = arr;
     window._items = [];
     window._pos = 0;
+window._show = function (i) {
+  window._drillMode = false;
 
-    // viewer show
-    window._show = function (i) {
-      window._pos = Math.max(0, Math.min(i, window._items.length - 1));
-      const it = window._items[window._pos];
-      const img = els.image;
-      if (!img) {
-        console.warn('[SHOW] no #image element');
-        return;
-      }
+  window._viewToken = (window._viewToken || 0) + 1;
+  const myToken = window._viewToken;
 
-      const wrap = document.getElementById('image-wrapper');
-      if (wrap && getComputedStyle(wrap).position === 'static') {
-        wrap.style.position = 'relative';
-      }
+  window._pos = Math.max(0, Math.min(i, window._items.length - 1));
+  const it = window._items[window._pos];
+  const img = els.image;
 
-      let cap = document.getElementById('image-caption');
-      if (!cap && wrap) {
-        cap = document.createElement('div');
-        cap.id = 'image-caption';
-        Object.assign(cap.style, {
-          position: 'absolute',
-          left: '12px',
-          bottom: '12px',
-          padding: '6px 10px',
-          borderRadius: '10px',
-          background: 'rgba(0,0,0,0.65)',
-          color: '#fff',
-          fontSize: '14px',
-          lineHeight: '1.2',
-          pointerEvents: 'none',
-          maxWidth: 'calc(100% - 24px)',
-          whiteSpace: 'nowrap',
-          overflow: 'hidden',
-          textOverflow: 'ellipsis'
-        });
-        wrap.appendChild(cap);
-      }
+  if (!img) {
+    console.warn('[SHOW] no #image element');
+    return;
+  }
 
-      if (!it) {
-        img.removeAttribute('src');
-        if (cap) cap.textContent = '';
-        return;
-      }
+  const wrap = document.getElementById('image-wrapper');
+  if (wrap && getComputedStyle(wrap).position === 'static') {
+    wrap.style.position = 'relative';
+  }
 
-      const label = it.label || it.name || it.path || '';
-      const cat = els.categorySelect?.value || '';
+  let cap = document.getElementById('image-caption');
+  if (!cap && wrap) {
+    cap = document.createElement('div');
+    cap.id = 'image-caption';
+    Object.assign(cap.style, {
+      position: 'absolute',
+      left: '12px',
+      bottom: '12px',
+      padding: '6px 10px',
+      borderRadius: '10px',
+      background: 'rgba(0,0,0,0.65)',
+      color: '#fff',
+      fontSize: '14px',
+      lineHeight: '1.2',
+      pointerEvents: 'none',
+      maxWidth: 'calc(100% - 24px)',
+      whiteSpace: 'nowrap',
+      overflow: 'hidden',
+      textOverflow: 'ellipsis'
+    });
+    wrap.appendChild(cap);
+  }
 
-      img.setAttribute('draggable', 'false');
-      img.style.userSelect = 'none';
-      img.style.webkitUserDrag = 'none';
-      img.addEventListener('dragstart', e => e.preventDefault(), { passive: false });
-      img.onerror = () => console.warn('IMAGE LOAD FAILED:', img.src);
+  if (!it) {
+    img.onload = null;
+    img.onerror = null;
+    img.removeAttribute('src');
+    if (cap) cap.textContent = '';
+    mapRects = [];
+    mapClear();
+    return;
+  }
 
-      img.onload = () => {
-        if (cap) {
-          cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
-        }
-        setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);
-        setCurrentSheetLabel(label, it);
-      };
+  const label = it.label || it.name || it.path || '';
+  const cat = els.categorySelect?.value || '';
 
-      img.src = buildSrc(window.currentJob.id, it);
+  window.currentSheetLabel = label;
+  mapCurrentSheet = label;
+  mapRects = [];
+  mapClear();
 
-      if (els.sheetSelect) els.sheetSelect.value = it.path;
-    };
+  img.onload = null;
+  img.onerror = null;
 
+  img.setAttribute('draggable', 'false');
+  img.style.userSelect = 'none';
+  img.style.webkitUserDrag = 'none';
+
+  img.onerror = () => {
+    if (myToken !== window._viewToken) return;
+    console.warn('IMAGE LOAD FAILED:', img.src);
+  };
+
+  img.onload = async () => {
+    if (myToken !== window._viewToken) {
+      console.log('[SHOW] stale onload ignored for', label);
+      return;
+    }
+
+    if (cap) {
+      cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
+    }
+
+    setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);
+
+    await setCurrentSheetLabel(label, it);
+
+    if (myToken !== window._viewToken) {
+      console.log('[SHOW] stale post-map ignored for', label);
+      return;
+    }
+  };
+
+  img.src = buildSrc(window.currentJob.id, it);
+
+  if (els.sheetSelect) els.sheetSelect.value = it.path;
+};
     // wire once
     if (!window._wired) {
       window._wired = true;
 
       els.categorySelect?.addEventListener('change', () => {
         const cat = els.categorySelect.value;
-         // Office Logistics is a "virtual category"
-if (cat === 'Office Logistics') {
-  // show logistics step/page
-  document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-  document.getElementById('step-office')?.classList.add('active');
 
-  setStatus(`Office Logistics — job: ${window.currentJob?.id || ''}`);
-  document.getElementById('office-job-code').textContent = window.currentJob?.id || '';
+        if (cat === 'Office Logistics') {
+          document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+          document.getElementById('step-office')?.classList.add('active');
 
+          setStatus(`Office Logistics — job: ${window.currentJob?.id || ''}`);
+          document.getElementById('office-job-code').textContent = window.currentJob?.id || '';
 
-  // Optional: keep Step-2 Next disabled since we're not browsing images
-  if (els.step2Next) els.step2Next.disabled = true;
-  return;
-}
+          if (els.step2Next) els.step2Next.disabled = true;
+          return;
+        }
 
         const base = window.currentIndex[cat] || [];
         if (els.step2Next) els.step2Next.disabled = !cat;
@@ -699,9 +726,9 @@ if (cat === 'Office Logistics') {
               label: x.label || x.name || x.path
             })),
             'Select a sheet'
-           
           );
         }
+
         if (window._items.length) {
           _show(0);
           if (els.step3Next) els.step3Next.disabled = false;
@@ -722,6 +749,7 @@ if (cat === 'Office Logistics') {
         const cat = els.categorySelect?.value || '';
         const base = window.currentIndex[cat] || [];
         const q = (els.filterInput.value || '').toLowerCase();
+
         window._items = q
           ? base.filter(it =>
               (`${it.name || ''} ${it.label || ''} ${it.path || ''}`)
@@ -739,6 +767,7 @@ if (cat === 'Office Logistics') {
             'Select a sheet'
           );
         }
+
         if (window._items.length) {
           _show(0);
           if (els.step3Next) els.step3Next.disabled = false;
@@ -749,10 +778,7 @@ if (cat === 'Office Logistics') {
         }
       });
 
-      document.getElementById('prev-btn')?.addEventListener('click', () => _show(window._pos - 1));
-      document.getElementById('next-btn')?.addEventListener('click', () => _show(window._pos + 1));
     }
-
     setStatus(
       `Index loaded. ${Object.keys(groups).length} categor${
         Object.keys(groups).length === 1 ? 'y' : 'ies'
@@ -763,6 +789,7 @@ if (cat === 'Office Logistics') {
     setStatus('Failed to load index.');
   }
 }
+
 window.loadIndexForCurrentJob = loadIndexForCurrentJob;
 
 // ---------- Generic [data-go] nav ----------
@@ -1289,8 +1316,8 @@ function statusKeyFor(label) {
 
 // ===== VIEW HISTORY (Back should walk Erection -> Member -> Clip -> ...) =====
 // Back should ONLY undo click-and-fetch drilldowns
-window.drillStack = window.drillStack || [];
 
+window.drillStack = window.drillStack || [];
 function pushDrillState() {
   const st = captureViewState();
   if (!st.imgSrc) return; // must have an image showing
@@ -1298,6 +1325,15 @@ function pushDrillState() {
   if (top && top.imgSrc === st.imgSrc && top.sheetLabel === st.sheetLabel) return;
   window.drillStack.push(st);
   if (window.drillStack.length > 40) window.drillStack.shift();
+  console.log('[PUSH]',
+  'stack=', window.drillStack.length,
+  'VISIBLE IMG =', mapGetImageEl()?.getAttribute('src'),
+  'CAPTURED IMG =', st.imgSrc,
+  'sheet=', st.sheetLabel,
+  'mapSheet=', st.mapCurrentSheet,
+  'pos=', st.pos,
+  'drillMode=', window._drillMode
+);
 }
 
 
@@ -1317,7 +1353,6 @@ function captureViewState() {
 }
 
 function restoreViewState(st) {
-  setTimeout(renderMapNow, 0);
   if (!st) return;
 
   // Stay in viewer step (never kick to Step 1)
@@ -1326,6 +1361,10 @@ function restoreViewState(st) {
 
   // Restore image FIRST (no dropdown rebuild events)
   const img = mapGetImageEl();
+
+  mapRects = [];
+  mapClear();
+
   if (img && st.imgSrc) {
     img.src = st.imgSrc;
   }
@@ -1368,13 +1407,35 @@ function restoreViewState(st) {
 function openFromHotspotRect(rect) {
   const job = window.currentJob;
   if (!job?.id) return;
+  const layer = document.getElementById('map-layer');
+const wrap = document.getElementById('image-wrapper');
+
+if (layer) layer.innerHTML = '';
+
+if (img) {
+  img.style.transform = 'none';
+  img.style.left = '0px';
+  img.style.top = '0px';
+}
+
+if (wrap) {
+  wrap.scrollLeft = 0;
+  wrap.scrollTop = 0;
+}
+
+window._drillMode = true;
 
   const img = mapGetImageEl();
   if (!img) return;
+  img.onload = null;
 
 
 // ✅ history: remember where we were before drilling down
- pushDrillState();     // <-- only push in the whole app
+ pushDrillState(); 
+ // 🔒 Enter detail mode (prevents overlay + fixes Prev)
+window._drillMode = true;
+window._drillFromPos = null;
+ // <-- only push in the whole app
 
   const label = String(rect.label || rect.tag || '').trim();
   const fetchPath = rect.fetch ? String(rect.fetch).replace(/^\.\/+/, '') : '';
@@ -1387,8 +1448,14 @@ const mapUrl = mapPath ? (mapPath.startsWith('jobs/') ? mapPath : jobRoot + mapP
 
   // show member image
   if (imgUrl) {
-    img.src = imgUrl;
+    window.currentSheetLabel = label || '';
+    mapCurrentSheet = label || '';
+    mapRects = [];
+    mapClear();
+
+    img.onload = null;
     img.onerror = () => console.warn('IMAGE LOAD FAILED:', img.src);
+    img.src = imgUrl;
   } else {
     console.warn('[HOTSPOT] No rect.fetch for', label, rect);
   }
@@ -1433,7 +1500,7 @@ function renderMapNow() {
           console.log("[SUPABASE] sheet statuses loaded", sheet, Object.keys(window.__sheetStatusMap).length);
 
           // re-render once statuses arrive (so colors apply)
-          renderMapNow();
+        setTimeout(renderMapNow, 0);
         })
         .catch(e => {
           console.warn("[SUPABASE] batch load failed", e);
@@ -1562,8 +1629,10 @@ hit.addEventListener('click', (ev) => {
     return; // never navigate while marking or clearing
   }
 
-  // NORMAL MODE: click & fetch
+   // NORMAL MODE: click & fetch
   if (rect.fetch || rect.map) {
+    console.log('[HOTSPOT CLICK]', rect.label, rect.fetch, rect.map);
+    pushDrillState();
     openFromHotspotRect(rect);
     return;
   }
@@ -1571,6 +1640,7 @@ hit.addEventListener('click', (ev) => {
   // fallback: jump behavior
   window._returnToSheet = window.currentSheetLabel;
   if (typeof window.jumpToLabel === 'function') {
+    pushDrillState();
     window.jumpToLabel(core || raw);
   }
 });
@@ -1588,6 +1658,7 @@ window.renderMapNow = renderMapNow;
  * and normalize rects.
  */
 async function loadMapForSheet(label) {
+   const requestedLabel = String(label || '').trim();
   const job = window.currentJob;
   if (!job || !job.id) {
     console.warn('[MAP] No job set; cannot load map for', label);
@@ -1616,9 +1687,15 @@ async function loadMapForSheet(label) {
     }
 
     const data = await res.json();
+
+    if (__normLabel(window.currentSheetLabel) !== __normLabel(requestedLabel)) {
+      console.log('[MAP] stale load ignored for', requestedLabel, 'current =', window.currentSheetLabel);
+      return;
+    }
+
     const rects = Array.isArray(data) ? data : (data.rects || []);
     mapRects = rects || [];
-    mapCurrentSheet = sheetLabel;
+    mapCurrentSheet = requestedLabel;
 
     setStatus(`Map loaded for ${sheetLabel} (${mapRects.length} hotspots) via ${sheetLabel}.json`);
     console.log('[MAP] Loaded', mapRects.length, 'rect(s) for', sheetLabel, 'from', url);
@@ -2119,7 +2196,69 @@ document.getElementById('office-jsaphoto-input')?.addEventListener('change', asy
 document.addEventListener('DOMContentLoaded', () => {
   __renderJsaPhotos().catch(console.warn);
 });
+// POP DEV TOOL — clear service worker + cache
+window.clearPOPcache = async function () {
+  if ('serviceWorker' in navigator) {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    for (const r of regs) {
+      await r.unregister();
+    }
+  }
 
+  if (window.caches) {
+    const keys = await caches.keys();
+    for (const k of keys) {
+      await caches.delete(k);
+    }
+  }
 
+  console.log("POP cache cleared — reload page");
+  alert("POP cache cleared. Reload the page.");
+};
 
+// ===============================
+// PREV (Drill-safe Back Button)
+// ===============================
+function goPrev() {
+  alert('goPrev fired');
+  window.drillStack = window.drillStack || [];
 
+  // 1. If we have drill history → restore it
+  if (window.drillStack.length > 0) {
+    const st = window.drillStack.pop();
+    restoreViewState(st);
+
+    console.log('[PREV RESTORE]',
+      'sheet=', st.sheetLabel,
+      'pos=', st.pos,
+      'stack=', window.drillStack.length
+    );
+    return;
+  }
+
+  // 2. Otherwise normal sheet browsing
+  if (Array.isArray(window._items) && window._items.length) {
+    const newPos = Math.max(0, (window._pos || 0) - 1);
+
+    if (typeof window._show === 'function') {
+      window._show(newPos);
+    }
+  }
+}
+document.getElementById('prev-btn').addEventListener('click', function () {
+  alert('PREV HANDLER FIRED');
+  // if we have drill history, go back through drill path first
+  if (window.drillStack && window.drillStack.length > 0) {
+
+    const prev = window.drillStack.pop();
+    console.log('[PREV] drill back to', prev.sheetLabel, prev.imgSrc);
+
+    restoreViewState(prev);
+    return;
+  }
+  
+  // otherwise normal sheet browsing
+  if (typeof window._show === 'function') {
+    window._show(window._pos - 1);
+  }
+});
