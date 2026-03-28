@@ -693,91 +693,96 @@ window._show = function (i) {
     if (!window._wired) {
       window._wired = true;
 
-      els.categorySelect?.addEventListener('change', () => {
-        const cat = els.categorySelect.value;
+els.categorySelect?.addEventListener('change', () => {
+  const cat = els.categorySelect.value;
 
-        if (cat === 'Office Logistics') {
-          document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
-          document.getElementById('step-office')?.classList.add('active');
+  if (cat === 'Office Logistics') {
+    document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
+    document.getElementById('step-office')?.classList.add('active');
 
-          setStatus(`Office Logistics — job: ${window.currentJob?.id || ''}`);
-          document.getElementById('office-job-code').textContent = window.currentJob?.id || '';
+    setStatus(`Office Logistics — job: ${window.currentJob?.id || ''}`);
+    document.getElementById('office-job-code').textContent = window.currentJob?.id || '';
 
-          if (els.step2Next) els.step2Next.disabled = true;
-          return;
-        }
+    if (els.step2Next) els.step2Next.disabled = true;
+    return;
+  }
 
-        const base = window.currentIndex[cat] || [];
-        if (els.step2Next) els.step2Next.disabled = !cat;
+  const base = window.currentIndex[cat] || [];
+  const q = (els.filterInput?.value || '').toLowerCase();
 
-        const q = (els.filterInput?.value || '').toLowerCase();
-        window._items = q
-          ? base.filter(it =>
-              (`${it.name || ''} ${it.label || ''} ${it.path || ''}`)
-                .toLowerCase()
-                .includes(q)
-            )
-          : base;
+  window._items = q
+    ? base.filter(it =>
+        (`${it.name || ''} ${it.label || ''} ${it.path || ''}`)
+          .toLowerCase()
+          .includes(q)
+      )
+    : base;
 
-        if (els.sheetSelect) {
-          els.sheetSelect.innerHTML = makeOptions(
-            window._items.map(x => ({
-              value: x.path,
-              label: x.label || x.name || x.path
-            })),
-            'Select a sheet'
-          );
-        }
+  if (els.sheetSelect) {
+    els.sheetSelect.innerHTML = makeOptions(
+      window._items.map(x => ({
+        value: x.path,
+        label: x.label || x.name || x.path
+      })),
+      'Select a sheet'
+    );
+  }
 
-        if (window._items.length) {
-          _show(0);
-          if (els.step3Next) els.step3Next.disabled = false;
-        } else {
-          els.image?.removeAttribute('src');
-          if (els.step3Next) els.step3Next.disabled = true;
-          setStatus('No matches.');
-        }
-      });
+  if (els.step2Next) els.step2Next.disabled = !cat;
 
-      els.sheetSelect?.addEventListener('change', () => {
-        const i = window._items.findIndex(it => it.path === els.sheetSelect.value);
-        if (i >= 0) _show(i);
-        if (els.step3Next) els.step3Next.disabled = i < 0;
-      });
+  if (window._items.length) {
+    if (!window._drillMode && typeof window._show === 'function') {
+      window._show(0);
+    }
+    if (els.step3Next) els.step3Next.disabled = false;
+  } else {
+    els.image?.removeAttribute('src');
+    if (els.step3Next) els.step3Next.disabled = true;
+    setStatus('No matches.');
+  }
+});
 
-      els.filterInput?.addEventListener('input', () => {
-        const cat = els.categorySelect?.value || '';
-        const base = window.currentIndex[cat] || [];
-        const q = (els.filterInput.value || '').toLowerCase();
+els.sheetSelect?.addEventListener('change', () => {
+  const i = window._items.findIndex(it => it.path === els.sheetSelect.value);
+  if (i >= 0 && typeof window._show === 'function') window._show(i);
+  if (els.step3Next) els.step3Next.disabled = i < 0;
+});
 
-        window._items = q
-          ? base.filter(it =>
-              (`${it.name || ''} ${it.label || ''} ${it.path || ''}`)
-                .toLowerCase()
-                .includes(q)
-            )
-          : base;
+els.filterInput?.addEventListener('input', () => {
+  const cat = els.categorySelect?.value || '';
+  const base = window.currentIndex[cat] || [];
+  const q = (els.filterInput.value || '').toLowerCase();
 
-        if (els.sheetSelect) {
-          els.sheetSelect.innerHTML = makeOptions(
-            window._items.map(x => ({
-              value: x.path,
-              label: x.label || x.name || x.path
-            })),
-            'Select a sheet'
-          );
-        }
+  window._items = q
+    ? base.filter(it =>
+        (`${it.name || ''} ${it.label || ''} ${it.path || ''}`)
+          .toLowerCase()
+          .includes(q)
+      )
+    : base;
 
-        if (window._items.length) {
-          _show(0);
-          if (els.step3Next) els.step3Next.disabled = false;
-        } else {
-          els.image?.removeAttribute('src');
-          if (els.step3Next) els.step3Next.disabled = true;
-          setStatus('No matches.');
-        }
-      });
+  if (els.sheetSelect) {
+    els.sheetSelect.innerHTML = makeOptions(
+      window._items.map(x => ({
+        value: x.path,
+        label: x.label || x.name || x.path
+      })),
+      'Select a sheet'
+    );
+  }
 
+  if (window._items.length) {
+    if (!window._drillMode && typeof window._show === 'function') {
+      window._show(0);
+    }
+    if (els.step3Next) els.step3Next.disabled = false;
+  } else {
+    els.image?.removeAttribute('src');
+    if (els.step3Next) els.step3Next.disabled = true;
+    setStatus('No matches.');
+  }
+});
+      
     }
     setStatus(
       `Index loaded. ${Object.keys(groups).length} categor${
@@ -1378,9 +1383,9 @@ function restoreViewState(st) {
   if (els.categorySelect && typeof st.category === 'string') {
     els.categorySelect.value = st.category;
   }
-  if (els.sheetSelect && typeof st.sheetPath === 'string') {
-    els.sheetSelect.value = st.sheetPath;
-  }
+  // if (els.sheetSelect && typeof st.sheetPath === 'string') {
+  // els.sheetSelect.value = st.sheetPath;
+  // }
   if (typeof st.pos === 'number') {
     window._pos = st.pos;
   }
@@ -1409,6 +1414,7 @@ function openFromHotspotRect(rect) {
   if (!job?.id) return;
   const layer = document.getElementById('map-layer');
 const wrap = document.getElementById('image-wrapper');
+const img = mapGetImageEl();
 
 if (layer) layer.innerHTML = '';
 
@@ -1424,8 +1430,8 @@ if (wrap) {
 }
 
 window._drillMode = true;
+window._viewToken = (window._viewToken || 0) + 1;
 
-  const img = mapGetImageEl();
   if (!img) return;
   img.onload = null;
 
@@ -2245,7 +2251,9 @@ function goPrev() {
     }
   }
 }
-document.getElementById('prev-btn').addEventListener('click', function () {
+document.getElementById('prev-btn').addEventListener('click', function (ev) {
+  ev.preventDefault();
+  ev.stopImmediatePropagation();
   alert('PREV HANDLER FIRED');
   // if we have drill history, go back through drill path first
   if (window.drillStack && window.drillStack.length > 0) {
