@@ -592,9 +592,24 @@ if (els.categorySelect && !Array.from(els.categorySelect.options).some(o => o.va
     window._allItems = arr;
     window._items = [];
     window._pos = 0;
-window._show = function (i) {
-  window._drillMode = false;
 
+
+window._show = function (i) {
+ 
+  if (window._restoringDrill === true) {
+  console.log('[SHOW BLOCKED] restore in progress');
+  return;
+}
+  const currentLabel = window.currentSheetLabel || "";
+
+  if (window._drillMode === true || window._suppressNextShow === true || /^[0-9]/.test(currentLabel)) {
+    console.log('[SHOW] blocked while in member view:', currentLabel);
+    window._drillMode = false;
+    window._suppressNextShow = false;
+    return;
+  }
+
+  window._drillMode = false;
   window._viewToken = (window._viewToken || 0) + 1;
   const myToken = window._viewToken;
 
@@ -670,6 +685,10 @@ window._show = function (i) {
       console.log('[SHOW] stale onload ignored for', label);
       return;
     }
+      if (window._drillMode === true || __normLabel(window.currentSheetLabel) !== __normLabel(label)) {
+    console.log('[SHOW] late sheet onload ignored for', label, 'current=', window.currentSheetLabel);
+    return;
+  }
 
     if (cap) {
       cap.textContent = `${cat ? cat + ' • ' : ''}${label}  (${window._pos + 1}/${window._items.length})`;
@@ -678,14 +697,13 @@ window._show = function (i) {
     setStatus(`Showing: ${label} (${window._pos + 1}/${window._items.length})`);
 
     await setCurrentSheetLabel(label, it);
-
     if (myToken !== window._viewToken) {
       console.log('[SHOW] stale post-map ignored for', label);
       return;
     }
   };
 
-  img.src = buildSrc(window.currentJob.id, it);
+   img.src =buildSrc(window.currentJob.id, it);
 
   if (els.sheetSelect) els.sheetSelect.value = it.path;
 };
@@ -730,12 +748,20 @@ els.categorySelect?.addEventListener('change', () => {
 
   if (els.step2Next) els.step2Next.disabled = !cat;
 
-  if (window._items.length) {
-    if (!window._drillMode && typeof window._show === 'function') {
-      window._show(0);
-    }
-    if (els.step3Next) els.step3Next.disabled = false;
-  } else {
+if (window._items.length) {
+
+  if (window._restoringDrill === true) {
+    console.log('[SHOW] blocked category reset during restore');
+    return;
+  }
+
+  const viewingMember = /^[0-9]/.test(window.currentSheetLabel || '');
+
+  if (!window._drillMode && !window._suppressNextShow && !viewingMember && typeof window._show === 'function') {
+    window._show(0);
+  }
+  if (els.step3Next) els.step3Next.disabled = false;
+} else {
     els.image?.removeAttribute('src');
     if (els.step3Next) els.step3Next.disabled = true;
     setStatus('No matches.');
@@ -808,23 +834,29 @@ document.addEventListener('click', (e) => {
   if (next) next.classList.add('active');
 });
 
-// === Back button: pop view history (multi-level) ===
+// === Back button: pop view history (multi-level) ====
 document.addEventListener('click', (ev) => {
+
   const btn = ev.target.closest('.back-btn');
+
   if (!btn) return;
 
-  // stop the normal step-nav ([data-go]) from firing
+  // only handle wizard navigation buttons
+  if (btn.id === 'prev-btn') return;
+
   ev.preventDefault();
 
-
   const st = window.drillStack?.pop();
+
   if (!st) {
     console.log('[BACK] No history; staying put.');
     return;
   }
 
   console.log('[BACK] Restoring:', st.sheetLabel || st.imgSrc);
+
   restoreViewState(st);
+
 }, true);
 
 // ===== Supervisor Lock (client-side) =====
@@ -1359,7 +1391,7 @@ function captureViewState() {
 
 function restoreViewState(st) {
   if (!st) return;
-
+window._restoringDrill = true;
   // Stay in viewer step (never kick to Step 1)
   document.querySelectorAll('.step').forEach(s => s.classList.remove('active'));
   document.getElementById('step-4')?.classList.add('active');
@@ -1402,6 +1434,10 @@ function restoreViewState(st) {
   // IMPORTANT: DO NOT call _show() here.
   // _show() triggers setCurrentSheetLabel() which triggers loadMapForSheet()
   // and that’s why you’re getting spam 404s and bouncing.
+setTimeout(() => {
+  window._restoringDrill = false;
+}, 0);
+
 }
  
 
@@ -1430,6 +1466,7 @@ if (wrap) {
 }
 
 window._drillMode = true;
+window._suppressNextShow = true;
 window._viewToken = (window._viewToken || 0) + 1;
 
   if (!img) return;
@@ -1459,9 +1496,14 @@ const mapUrl = mapPath ? (mapPath.startsWith('jobs/') ? mapPath : jobRoot + mapP
     mapRects = [];
     mapClear();
 
-    img.onload = null;
-    img.onerror = () => console.warn('IMAGE LOAD FAILED:', img.src);
-    img.src = imgUrl;
+  img.onload = () => {
+  if (window._drillMode !== true) return;
+  renderMapNow();
+};
+
+img.onerror = () => console.warn('IMAGE LOAD FAILED:', img.src);
+
+img.src = imgUrl;
   } else {
     console.warn('[HOTSPOT] No rect.fetch for', label, rect);
   }
@@ -1471,11 +1513,15 @@ const mapUrl = mapPath ? (mapPath.startsWith('jobs/') ? mapPath : jobRoot + mapP
     fetch(mapUrl, { cache: 'no-store' })
       .then(r => { if (!r.ok) throw new Error(`HTTP ${r.status}`); return r.json(); })
       .then(data => {
+if (window._drillMode !== true) {
+  console.log('[MAP] stale member map ignored');
+  return;
+}
         mapRects = Array.isArray(data) ? data : (data.rects || []);
         mapCurrentSheet = label || window.currentSheetLabel || '';
         window.currentSheetLabel = mapCurrentSheet;
         setStatus(`Map loaded for ${mapCurrentSheet} (${mapRects.length} hotspots) via ${mapPath}`);
-        renderMapNow();
+    
       })
       .catch(err => {
         console.warn('[HOTSPOT] Member map load failed:', mapUrl, err);
@@ -1635,18 +1681,17 @@ hit.addEventListener('click', (ev) => {
     return; // never navigate while marking or clearing
   }
 
-   // NORMAL MODE: click & fetch
-  if (rect.fetch || rect.map) {
-    console.log('[HOTSPOT CLICK]', rect.label, rect.fetch, rect.map);
-    pushDrillState();
-    openFromHotspotRect(rect);
-    return;
-  }
+// NORMAL MODE: click & fetch
+if (rect.fetch || rect.map) {
+  console.log('[HOTSPOT CLICK]', rect.label, rect.fetch, rect.map);
+  openFromHotspotRect(rect);   // push happens inside the function already
+  return;
+}
 
   // fallback: jump behavior
   window._returnToSheet = window.currentSheetLabel;
   if (typeof window.jumpToLabel === 'function') {
-    pushDrillState();
+  
     window.jumpToLabel(core || raw);
   }
 });
@@ -1664,6 +1709,10 @@ window.renderMapNow = renderMapNow;
  * and normalize rects.
  */
 async function loadMapForSheet(label) {
+  if (window._drillMode === true) {
+  console.log('[MAP] skipped sheet map load during drill');
+  return;
+}
    const requestedLabel = String(label || '').trim();
   const job = window.currentJob;
   if (!job || !job.id) {
@@ -2226,12 +2275,16 @@ window.clearPOPcache = async function () {
 // PREV (Drill-safe Back Button)
 // ===============================
 function goPrev() {
-  alert('goPrev fired');
+
+ 
+
   window.drillStack = window.drillStack || [];
 
   // 1. If we have drill history → restore it
   if (window.drillStack.length > 0) {
+
     const st = window.drillStack.pop();
+
     restoreViewState(st);
 
     console.log('[PREV RESTORE]',
@@ -2239,34 +2292,22 @@ function goPrev() {
       'pos=', st.pos,
       'stack=', window.drillStack.length
     );
+
     return;
   }
 
   // 2. Otherwise normal sheet browsing
   if (Array.isArray(window._items) && window._items.length) {
+
     const newPos = Math.max(0, (window._pos || 0) - 1);
 
     if (typeof window._show === 'function') {
       window._show(newPos);
     }
+
   }
 }
-document.getElementById('prev-btn').addEventListener('click', function (ev) {
-  ev.preventDefault();
-  ev.stopImmediatePropagation();
-  alert('PREV HANDLER FIRED');
-  // if we have drill history, go back through drill path first
-  if (window.drillStack && window.drillStack.length > 0) {
 
-    const prev = window.drillStack.pop();
-    console.log('[PREV] drill back to', prev.sheetLabel, prev.imgSrc);
-
-    restoreViewState(prev);
-    return;
-  }
+// attach ONCE
+document.getElementById('prev-btn')?.addEventListener('click', goPrev);
   
-  // otherwise normal sheet browsing
-  if (typeof window._show === 'function') {
-    window._show(window._pos - 1);
-  }
-});
